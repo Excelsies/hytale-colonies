@@ -1,14 +1,16 @@
 {
-    "Group": "Example",
-    "Name": "ExamplePlugin",
+    "Group": "Excelsies",
+    "Name": "HyColonies",
     "Version": "0.0.2",
-    "Description": "An example plugin for HyTale!",
+    "Description": "A Hytale city building and management mod",
     "Authors": [
         {
-            "Name": "It's you!"
+            "Name": "Excelsies",
+            "Email": "",
+            "Url": ""
         }
     ],
-    "Website": "example.org",
+    "Website": "",
     "ServerVersion": "*",
     "Dependencies": {
         
@@ -17,6 +19,6 @@
         
     },
     "DisabledByDefault": false,
-    "Main": "org.example.plugin.ExamplePlugin",
+    "Main": "com.excelsies.hycolonies.HyColoniesPlugin",
     "IncludesAssetPack": true
 }
