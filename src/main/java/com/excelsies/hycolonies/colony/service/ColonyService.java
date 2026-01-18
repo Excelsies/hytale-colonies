@@ -18,6 +18,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * Service layer that manages the lifecycle of colonies.
  * Provides an in-memory cache layer on top of ColonyStorage for fast access.
+ *
+ * Note: NPC entity spawning is handled separately in the command layer
+ * to ensure proper thread safety (must run on world thread).
  */
 public class ColonyService {
 
@@ -50,7 +53,7 @@ public class ColonyService {
                 playerColonyMap.put(colony.getOwnerUuid(), colony.getColonyId());
             }
         }
-        LOGGER.atInfo().log("ColonyService initialized with " + colonies.size() + " colonies");
+        LOGGER.atInfo().log("ColonyService initialized with %d colonies", colonies.size());
     }
 
     /**
@@ -65,7 +68,7 @@ public class ColonyService {
                 AUTO_SAVE_INTERVAL_MINUTES,
                 TimeUnit.MINUTES
         );
-        LOGGER.atInfo().log("Auto-save scheduled every " + AUTO_SAVE_INTERVAL_MINUTES + " minutes");
+        LOGGER.atInfo().log("Auto-save scheduled every %d minutes", AUTO_SAVE_INTERVAL_MINUTES);
     }
 
     /**
@@ -81,9 +84,8 @@ public class ColonyService {
      */
     public ColonyData createColony(String name, UUID ownerUuid,
                                    double x, double y, double z, String worldId) {
-        // Check if player already has a colony
         if (playerColonyMap.containsKey(ownerUuid)) {
-            LOGGER.atWarning().log("Player " + ownerUuid + " already has a colony");
+            LOGGER.atWarning().log("Player %s already has a colony", ownerUuid);
             return null;
         }
 
@@ -98,10 +100,9 @@ public class ColonyService {
         loadedColonies.put(colony.getColonyId(), colony);
         playerColonyMap.put(ownerUuid, colony.getColonyId());
 
-        // Save immediately
         storage.save(colony);
 
-        LOGGER.atInfo().log("Created colony '" + name + "' for player " + ownerUuid);
+        LOGGER.atInfo().log("Created colony '%s' for player %s", name, ownerUuid);
         return colony;
     }
 
@@ -141,6 +142,7 @@ public class ColonyService {
 
     /**
      * Adds a citizen to a colony (data only - no in-world entity).
+     * Entity spawning should be handled separately via CitizenCommand.
      *
      * @param colonyId The colony UUID
      * @param name     The citizen's name
@@ -150,9 +152,24 @@ public class ColonyService {
      * @return The created citizen data, or null if the colony wasn't found
      */
     public CitizenData addCitizen(UUID colonyId, String name, double x, double y, double z) {
+        return addCitizen(colonyId, name, x, y, z, false);
+    }
+
+    /**
+     * Adds a citizen to a colony.
+     *
+     * @param colonyId    The colony UUID
+     * @param name        The citizen's name
+     * @param x           Position X coordinate
+     * @param y           Position Y coordinate
+     * @param z           Position Z coordinate
+     * @param spawnEntity Ignored - entity spawning must be done via command layer
+     * @return The created citizen data, or null if the colony wasn't found
+     */
+    public CitizenData addCitizen(UUID colonyId, String name, double x, double y, double z, boolean spawnEntity) {
         ColonyData colony = loadedColonies.get(colonyId);
         if (colony == null) {
-            LOGGER.atWarning().log("Cannot add citizen - colony not found: " + colonyId);
+            LOGGER.atWarning().log("Cannot add citizen - colony not found: %s", colonyId);
             return null;
         }
 
@@ -164,7 +181,7 @@ public class ColonyService {
         );
 
         colony.addCitizen(citizen);
-        LOGGER.atInfo().log("Added citizen '" + name + "' to colony '" + colony.getName() + "'");
+        LOGGER.atInfo().log("Added citizen '%s' to colony '%s'", name, colony.getName());
 
         return citizen;
     }
@@ -174,21 +191,46 @@ public class ColonyService {
      *
      * @param colonyId  The colony UUID
      * @param citizenId The citizen UUID to remove
-     * @return true if the citizen was removed
+     * @return The removed citizen data, or null if not found
      */
-    public boolean removeCitizen(UUID colonyId, UUID citizenId) {
+    public CitizenData removeCitizen(UUID colonyId, UUID citizenId) {
         ColonyData colony = loadedColonies.get(colonyId);
         if (colony == null) {
-            return false;
+            return null;
         }
 
         CitizenData existing = colony.getCitizen(citizenId);
         if (existing != null) {
             colony.removeCitizen(citizenId);
-            LOGGER.atInfo().log("Removed citizen '" + existing.getName() + "' from colony '" + colony.getName() + "'");
-            return true;
+            LOGGER.atInfo().log("Removed citizen '%s' from colony '%s'", existing.getName(), colony.getName());
+            return existing;
         }
-        return false;
+        return null;
+    }
+
+    /**
+     * Deletes a colony and all its citizens.
+     *
+     * @param colonyId The colony UUID to delete
+     * @return The deleted colony data, or null if not found
+     */
+    public ColonyData deleteColony(UUID colonyId) {
+        ColonyData colony = loadedColonies.remove(colonyId);
+        if (colony == null) {
+            LOGGER.atWarning().log("Cannot delete colony - not found: %s", colonyId);
+            return null;
+        }
+
+        // Remove player mapping if this colony had an owner
+        if (colony.getOwnerUuid() != null) {
+            playerColonyMap.remove(colony.getOwnerUuid());
+        }
+
+        // Delete from storage
+        storage.delete(colonyId);
+
+        LOGGER.atInfo().log("Deleted colony '%s' with %d citizens", colony.getName(), colony.getPopulation());
+        return colony;
     }
 
     /**
@@ -202,7 +244,7 @@ public class ColonyService {
                 saved++;
             }
         }
-        LOGGER.atInfo().log("Saved " + saved + "/" + loadedColonies.size() + " colonies");
+        LOGGER.atInfo().log("Saved %d/%d colonies", saved, loadedColonies.size());
     }
 
     /**

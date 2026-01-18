@@ -13,7 +13,7 @@
     "Website": "",
     "ServerVersion": "*",
     "Dependencies": {
-        
+        "Hytale:NPC": "*"
     },
     "OptionalDependencies": {
         
