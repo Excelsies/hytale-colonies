@@ -21,6 +21,7 @@ import java.util.UUID;
  * - /colony list - Lists all colonies
  * - /colony info [id] - Shows colony info
  * - /colony save - Saves all colony data
+ * - /colony delete [id] - Deletes a colony and all its citizens
  */
 public class ColonyCommand extends CommandBase {
 
@@ -33,6 +34,7 @@ public class ColonyCommand extends CommandBase {
         addSubCommand(new ListSubCommand(colonyService));
         addSubCommand(new InfoSubCommand(colonyService));
         addSubCommand(new SaveSubCommand(colonyService));
+        addSubCommand(new DeleteSubCommand(colonyService));
     }
 
     @Override
@@ -43,6 +45,7 @@ public class ColonyCommand extends CommandBase {
         ctx.sendMessage(Message.raw("  /colony list - List all colonies"));
         ctx.sendMessage(Message.raw("  /colony info [id] - Show colony info"));
         ctx.sendMessage(Message.raw("  /colony save - Save all colony data"));
+        ctx.sendMessage(Message.raw("  /colony delete [id] - Delete a colony and all citizens"));
     }
 
     // =====================
@@ -167,6 +170,47 @@ public class ColonyCommand extends CommandBase {
         protected void executeSync(@Nonnull CommandContext ctx) {
             colonyService.saveAll();
             ctx.sendMessage(Message.raw("All colonies saved!"));
+        }
+    }
+
+    // =====================
+    // Subcommand: delete
+    // =====================
+    private static class DeleteSubCommand extends CommandBase {
+        private final ColonyService colonyService;
+        private final RequiredArg<UUID> idArg;
+
+        public DeleteSubCommand(ColonyService colonyService) {
+            super("delete", "Delete a colony and all its citizens");
+            this.colonyService = colonyService;
+            this.idArg = withRequiredArg("id", "Colony UUID", ArgTypes.UUID);
+        }
+
+        @Override
+        protected void executeSync(@Nonnull CommandContext ctx) {
+            UUID colonyId = ctx.get(idArg);
+
+            var colonyOpt = colonyService.getColony(colonyId);
+            if (colonyOpt.isEmpty()) {
+                ctx.sendMessage(Message.raw("Colony not found."));
+                return;
+            }
+
+            ColonyData colony = colonyOpt.get();
+            String colonyName = colony.getName();
+            int citizenCount = colony.getPopulation();
+
+            ColonyData deleted = colonyService.deleteColony(colonyId);
+
+            if (deleted != null) {
+                ctx.sendMessage(Message.raw("Deleted colony '" + colonyName + "'."));
+                if (citizenCount > 0) {
+                    ctx.sendMessage(Message.raw("Removed " + citizenCount + " citizen(s) from records."));
+                    ctx.sendMessage(Message.raw("Note: Spawned NPC entities remain in world until chunk unloads."));
+                }
+            } else {
+                ctx.sendMessage(Message.raw("Failed to delete colony."));
+            }
         }
     }
 }
