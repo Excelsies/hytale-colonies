@@ -60,21 +60,16 @@ public class CitizenCommand extends CommandBase {
     }
 
     /**
-     * Preferred NPC types to use when spawning citizens.
-     * These are tried in order until one succeeds.
-     */
-    private static final String[] PREFERRED_NPC_TYPES = {"Kweebec_Razorleaf", "Feran_Civilian", "Empty_Role", "Cow"};
-
-    /**
      * Spawns a citizen NPC on the world thread.
      * Must be called from within world.execute().
      *
      * @param store    The entity store
      * @param colonyId The colony UUID
      * @param citizen  The citizen data
+     * @param npcSkin  The specific NPC skin to spawn
      * @return true if spawn was successful
      */
-    private static boolean spawnCitizenNPC(Store<EntityStore> store, UUID colonyId, CitizenData citizen) {
+    private static boolean spawnCitizenNPC(Store<EntityStore> store, UUID colonyId, CitizenData citizen, String npcSkin) {
         NPCPlugin npcPlugin = NPCPlugin.get();
         if (npcPlugin == null) {
             LOGGER.atWarning().log("NPCPlugin not available");
@@ -90,34 +85,34 @@ public class CitizenCommand extends CommandBase {
             return false;
         }
 
-        for (String npcType : PREFERRED_NPC_TYPES) {
-            if (availableRoles.contains(npcType)) {
-                try {
-                    Pair<Ref<EntityStore>, INonPlayerCharacter> result =
-                            npcPlugin.spawnNPC(store, npcType, null, position, rotation);
+        if (availableRoles.contains(npcSkin)) {
+            try {
+                Pair<Ref<EntityStore>, INonPlayerCharacter> result =
+                        npcPlugin.spawnNPC(store, npcSkin, null, position, rotation);
 
-                    if (result != null && result.first() != null) {
-                        Ref<EntityStore> entityRef = result.first();
+                if (result != null && result.first() != null) {
+                    Ref<EntityStore> entityRef = result.first();
 
-                        if (CitizenComponent.getComponentType() != null) {
-                            CitizenComponent citizenComponent = new CitizenComponent(
-                                    colonyId,
-                                    citizen.getCitizenId(),
-                                    citizen.getName(),
-                                    citizen.getSkinId()
-                            );
-                            store.addComponent(entityRef, CitizenComponent.getComponentType(), citizenComponent);
-                        }
-
-                        LOGGER.atInfo().log("Spawned citizen '%s' as %s at (%.0f, %.0f, %.0f)",
-                                citizen.getName(), npcType,
-                                position.getX(), position.getY(), position.getZ());
-                        return true;
+                    if (CitizenComponent.getComponentType() != null) {
+                        CitizenComponent citizenComponent = new CitizenComponent(
+                                colonyId,
+                                citizen.getCitizenId(),
+                                citizen.getName(),
+                                citizen.getNpcSkin()
+                        );
+                        store.addComponent(entityRef, CitizenComponent.getComponentType(), citizenComponent);
                     }
-                } catch (Exception e) {
-                    LOGGER.atFine().log("Failed to spawn %s: %s", npcType, e.getMessage());
+
+                    LOGGER.atInfo().log("Spawned citizen '%s' as %s at (%.0f, %.0f, %.0f)",
+                            citizen.getName(), npcSkin,
+                            position.getX(), position.getY(), position.getZ());
+                    return true;
                 }
+            } catch (Exception e) {
+                LOGGER.atFine().log("Failed to spawn %s: %s", npcSkin, e.getMessage());
             }
+        } else {
+            LOGGER.atWarning().log("NPC skin '%s' not found in available roles", npcSkin);
         }
 
         LOGGER.atWarning().log("Failed to spawn NPC for citizen '%s'", citizen.getName());
@@ -189,13 +184,19 @@ public class CitizenCommand extends CommandBase {
                         z = transform.getPosition().getZ();
                     }
 
-                    CitizenData citizen = colonyService.addCitizen(colonyId, citizenName, x, y, z, false);
+                    // Select random skin based on faction
+                    String npcSkin = colony.getFaction().getRandomSkin();
+                    if (npcSkin == null) {
+                        npcSkin = "Kweebec_Razorleaf"; // Fallback
+                    }
+
+                    CitizenData citizen = colonyService.addCitizen(colonyId, citizenName, x, y, z, npcSkin, false);
 
                     if (citizen != null) {
-                        boolean spawned = spawnCitizenNPC(store, colonyId, citizen);
+                        boolean spawned = spawnCitizenNPC(store, colonyId, citizen, npcSkin);
 
                         if (spawned) {
-                            ctx.sendMessage(Message.raw("Spawned citizen '" + citizenName + "' in " + colony.getName() + "!"));
+                            ctx.sendMessage(Message.raw("Spawned citizen '" + citizenName + "' (" + npcSkin + ") in " + colony.getName() + "!"));
                         } else {
                             ctx.sendMessage(Message.raw("Added citizen '" + citizenName + "' but NPC spawn failed."));
                         }
@@ -328,7 +329,7 @@ public class CitizenCommand extends CommandBase {
 
                     citizen.updateLastPosition(x, y, z);
 
-                    boolean spawned = spawnCitizenNPC(store, colonyId, citizen);
+                    boolean spawned = spawnCitizenNPC(store, colonyId, citizen, citizen.getNpcSkin());
 
                     if (spawned) {
                         ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' at " +

@@ -10,7 +10,7 @@ public class CitizenData {
 
     private UUID citizenId;
     private String name;
-    private String skinId;
+    private String npcSkin;
     private double lastX;
     private double lastY;
     private double lastZ;
@@ -22,7 +22,7 @@ public class CitizenData {
     public CitizenData() {
         this.citizenId = UUID.randomUUID();
         this.name = "Citizen";
-        this.skinId = "default_citizen";
+        this.npcSkin = "Kweebec_Razorleaf";
         this.lastX = 0;
         this.lastY = 0;
         this.lastZ = 0;
@@ -32,10 +32,10 @@ public class CitizenData {
     /**
      * Full constructor for creating citizen data.
      */
-    public CitizenData(UUID citizenId, String name, String skinId, double x, double y, double z) {
+    public CitizenData(UUID citizenId, String name, String npcSkin, double x, double y, double z) {
         this.citizenId = citizenId;
         this.name = name;
-        this.skinId = skinId;
+        this.npcSkin = npcSkin;
         this.lastX = x;
         this.lastY = y;
         this.lastZ = z;
@@ -51,8 +51,8 @@ public class CitizenData {
         return name;
     }
 
-    public String getSkinId() {
-        return skinId;
+    public String getNpcSkin() {
+        return npcSkin;
     }
 
     public double getLastX() {
@@ -76,8 +76,8 @@ public class CitizenData {
         this.name = name;
     }
 
-    public void setSkinId(String skinId) {
-        this.skinId = skinId;
+    public void setNpcSkin(String npcSkin) {
+        this.npcSkin = npcSkin;
     }
 
     /**

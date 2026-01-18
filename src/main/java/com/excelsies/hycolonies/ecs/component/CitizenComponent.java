@@ -32,16 +32,16 @@ public class CitizenComponent implements Component<EntityStore> {
                     (c, v, i) -> c.citizenName = v,
                     (c, i) -> c.citizenName)
             .add()
-            .append(new KeyedCodec<>("SkinId", Codec.STRING),
-                    (c, v, i) -> c.skinId = v,
-                    (c, i) -> c.skinId)
+            .append(new KeyedCodec<>("NpcSkin", Codec.STRING),
+                    (c, v, i) -> c.npcSkin = v,
+                    (c, i) -> c.npcSkin)
             .add()
             .build();
 
     private UUID colonyId;
     private UUID citizenId;
     private String citizenName;
-    private String skinId;
+    private String npcSkin;
 
     /**
      * Default constructor for deserialization.
@@ -50,17 +50,17 @@ public class CitizenComponent implements Component<EntityStore> {
         this.colonyId = null;
         this.citizenId = UUID.randomUUID();
         this.citizenName = "Citizen";
-        this.skinId = "default_citizen";
+        this.npcSkin = "Kweebec_Razorleaf";
     }
 
     /**
      * Full constructor for creating a new citizen component.
      */
-    public CitizenComponent(UUID colonyId, UUID citizenId, String citizenName, String skinId) {
+    public CitizenComponent(UUID colonyId, UUID citizenId, String citizenName, String npcSkin) {
         this.colonyId = colonyId;
         this.citizenId = citizenId;
         this.citizenName = citizenName;
-        this.skinId = skinId;
+        this.npcSkin = npcSkin;
     }
 
     // Getters
@@ -76,8 +76,8 @@ public class CitizenComponent implements Component<EntityStore> {
         return citizenName;
     }
 
-    public String getSkinId() {
-        return skinId;
+    public String getNpcSkin() {
+        return npcSkin;
     }
 
     // Setters
@@ -89,8 +89,8 @@ public class CitizenComponent implements Component<EntityStore> {
         this.citizenName = citizenName;
     }
 
-    public void setSkinId(String skinId) {
-        this.skinId = skinId;
+    public void setNpcSkin(String npcSkin) {
+        this.npcSkin = npcSkin;
     }
 
     /**
@@ -109,6 +109,6 @@ public class CitizenComponent implements Component<EntityStore> {
 
     @Override
     public Component<EntityStore> clone() {
-        return new CitizenComponent(colonyId, citizenId, citizenName, skinId);
+        return new CitizenComponent(colonyId, citizenId, citizenName, npcSkin);
     }
 }

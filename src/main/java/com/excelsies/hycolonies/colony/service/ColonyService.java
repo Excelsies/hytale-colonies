@@ -80,10 +80,11 @@ public class ColonyService {
      * @param y         Center Y coordinate
      * @param z         Center Z coordinate
      * @param worldId   The world ID
+     * @param faction   The faction of the colony
      * @return The created colony, or null if the player already has a colony
      */
     public ColonyData createColony(String name, UUID ownerUuid,
-                                   double x, double y, double z, String worldId) {
+                                   double x, double y, double z, String worldId, com.excelsies.hycolonies.colony.model.Faction faction) {
         if (playerColonyMap.containsKey(ownerUuid)) {
             LOGGER.atWarning().log("Player %s already has a colony", ownerUuid);
             return null;
@@ -94,7 +95,8 @@ public class ColonyService {
                 name,
                 ownerUuid,
                 x, y, z,
-                worldId
+                worldId,
+                faction
         );
 
         loadedColonies.put(colony.getColonyId(), colony);
@@ -102,7 +104,7 @@ public class ColonyService {
 
         storage.save(colony);
 
-        LOGGER.atInfo().log("Created colony '%s' for player %s", name, ownerUuid);
+        LOGGER.atInfo().log("Created colony '%s' for player %s with faction %s", name, ownerUuid, faction);
         return colony;
     }
 
@@ -149,10 +151,11 @@ public class ColonyService {
      * @param x        Position X coordinate
      * @param y        Position Y coordinate
      * @param z        Position Z coordinate
+     * @param npcSkin  The NPC skin/type (optional, can be null to auto-select based on faction)
      * @return The created citizen data, or null if the colony wasn't found
      */
-    public CitizenData addCitizen(UUID colonyId, String name, double x, double y, double z) {
-        return addCitizen(colonyId, name, x, y, z, false);
+    public CitizenData addCitizen(UUID colonyId, String name, double x, double y, double z, String npcSkin) {
+        return addCitizen(colonyId, name, x, y, z, npcSkin, false);
     }
 
     /**
@@ -163,25 +166,30 @@ public class ColonyService {
      * @param x           Position X coordinate
      * @param y           Position Y coordinate
      * @param z           Position Z coordinate
+     * @param npcSkin     The NPC skin/type (optional, can be null to auto-select based on faction)
      * @param spawnEntity Ignored - entity spawning must be done via command layer
      * @return The created citizen data, or null if the colony wasn't found
      */
-    public CitizenData addCitizen(UUID colonyId, String name, double x, double y, double z, boolean spawnEntity) {
+    public CitizenData addCitizen(UUID colonyId, String name, double x, double y, double z, String npcSkin, boolean spawnEntity) {
         ColonyData colony = loadedColonies.get(colonyId);
         if (colony == null) {
             LOGGER.atWarning().log("Cannot add citizen - colony not found: %s", colonyId);
             return null;
         }
 
+        if (npcSkin == null) {
+            npcSkin = colony.getFaction().getRandomSkin();
+        }
+
         CitizenData citizen = new CitizenData(
                 UUID.randomUUID(),
                 name,
-                "default_citizen",
+                npcSkin,
                 x, y, z
         );
 
         colony.addCitizen(citizen);
-        LOGGER.atInfo().log("Added citizen '%s' to colony '%s'", name, colony.getName());
+        LOGGER.atInfo().log("Added citizen '%s' (%s) to colony '%s'", name, npcSkin, colony.getName());
 
         return citizen;
     }

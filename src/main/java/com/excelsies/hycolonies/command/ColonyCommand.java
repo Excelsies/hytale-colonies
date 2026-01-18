@@ -41,7 +41,7 @@ public class ColonyCommand extends CommandBase {
     protected void executeSync(@Nonnull CommandContext ctx) {
         // Show usage when base command is called without subcommand
         ctx.sendMessage(Message.raw("Usage:"));
-        ctx.sendMessage(Message.raw("  /colony create [name] - Create a new colony"));
+        ctx.sendMessage(Message.raw("  /colony create [name] [faction] - Create a new colony"));
         ctx.sendMessage(Message.raw("  /colony list - List all colonies"));
         ctx.sendMessage(Message.raw("  /colony info [id] - Show colony info"));
         ctx.sendMessage(Message.raw("  /colony save - Save all colony data"));
@@ -54,16 +54,29 @@ public class ColonyCommand extends CommandBase {
     private static class CreateSubCommand extends CommandBase {
         private final ColonyService colonyService;
         private final RequiredArg<String> nameArg;
+        private final RequiredArg<String> factionArg;
 
         public CreateSubCommand(ColonyService colonyService) {
             super("create", "Create a new colony");
             this.colonyService = colonyService;
             this.nameArg = withRequiredArg("name", "Name of the colony", ArgTypes.STRING);
+            this.factionArg = withRequiredArg("faction", "Faction (Kweebec, Trork, Outlander, Goblin, Feran, Klops)", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
             String name = ctx.get(nameArg);
+            String factionName = ctx.get(factionArg);
+
+            com.excelsies.hycolonies.colony.model.Faction faction = com.excelsies.hycolonies.colony.model.Faction.fromString(factionName);
+            if (faction == null) {
+                ctx.sendMessage(Message.raw("Invalid faction: " + factionName));
+                ctx.sendMessage(Message.raw("Valid factions: " +
+                        java.util.Arrays.stream(com.excelsies.hycolonies.colony.model.Faction.values())
+                                .map(com.excelsies.hycolonies.colony.model.Faction::getDisplayName)
+                                .collect(java.util.stream.Collectors.joining(", "))));
+                return;
+            }
 
             // Create colony with placeholder owner (no player context available in base API)
             UUID placeholderOwner = UUID.randomUUID();
@@ -71,11 +84,13 @@ public class ColonyCommand extends CommandBase {
                     name,
                     placeholderOwner,
                     0, 64, 0,  // Placeholder position
-                    "default"
+                    "default",
+                    faction
             );
 
             if (colony != null) {
                 ctx.sendMessage(Message.raw("Colony '" + name + "' created successfully!"));
+                ctx.sendMessage(Message.raw("Faction: " + colony.getFaction().getDisplayName()));
                 ctx.sendMessage(Message.raw("Colony ID: " + colony.getColonyId()));
                 ctx.sendMessage(Message.raw("Use /citizen add [colony-id] [name] to add citizens."));
             } else {
@@ -140,6 +155,7 @@ public class ColonyCommand extends CommandBase {
             ColonyData colony = colonyOpt.get();
             ctx.sendMessage(Message.raw("=== " + colony.getName() + " ==="));
             ctx.sendMessage(Message.raw("ID: " + colony.getColonyId()));
+            ctx.sendMessage(Message.raw("Faction: " + colony.getFaction().getDisplayName()));
             ctx.sendMessage(Message.raw("Population: " + colony.getPopulation() + " citizens"));
             ctx.sendMessage(Message.raw("Location: " +
                     (int) colony.getCenterX() + ", " +
@@ -149,7 +165,7 @@ public class ColonyCommand extends CommandBase {
             if (colony.getPopulation() > 0) {
                 ctx.sendMessage(Message.raw("Citizens:"));
                 colony.getCitizens().forEach(citizen ->
-                        ctx.sendMessage(Message.raw("  - " + citizen.getName()))
+                        ctx.sendMessage(Message.raw("  - " + citizen.getName() + " (" + citizen.getNpcSkin() + ")"))
                 );
             }
         }

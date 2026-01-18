@@ -19,6 +19,7 @@ public class ColonyData {
     private double centerY;
     private double centerZ;
     private String worldId;
+    private Faction faction;
     private List<CitizenData> citizens;
 
     /**
@@ -33,6 +34,7 @@ public class ColonyData {
         this.centerY = 0;
         this.centerZ = 0;
         this.worldId = "default";
+        this.faction = Faction.KWEEBEC;
         this.citizens = new ArrayList<>();
     }
 
@@ -40,7 +42,7 @@ public class ColonyData {
      * Full constructor for creating a colony.
      */
     public ColonyData(UUID colonyId, String name, UUID ownerUuid,
-                      double centerX, double centerY, double centerZ, String worldId) {
+                      double centerX, double centerY, double centerZ, String worldId, Faction faction) {
         this.colonyId = colonyId;
         this.name = name;
         this.ownerUuid = ownerUuid;
@@ -49,6 +51,7 @@ public class ColonyData {
         this.centerY = centerY;
         this.centerZ = centerZ;
         this.worldId = worldId;
+        this.faction = faction != null ? faction : Faction.KWEEBEC;
         this.citizens = new ArrayList<>();
     }
 
@@ -85,6 +88,10 @@ public class ColonyData {
         return worldId;
     }
 
+    public Faction getFaction() {
+        return faction != null ? faction : Faction.KWEEBEC;
+    }
+
     /**
      * Returns an unmodifiable view of the citizens list.
      */
@@ -102,6 +109,10 @@ public class ColonyData {
     // Setters
     public void setName(String name) {
         this.name = name;
+    }
+
+    public void setFaction(Faction faction) {
+        this.faction = faction;
     }
 
     // Citizen management
