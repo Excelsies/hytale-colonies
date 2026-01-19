@@ -84,6 +84,44 @@ public enum Faction {
     }
 
     /**
+     * Checks if this faction has a specific skin.
+     * @param skin The skin name to check.
+     * @return true if this faction contains the skin.
+     */
+    public boolean hasSkin(String skin) {
+        return npcSkins.contains(skin);
+    }
+
+    /**
+     * Finds a skin by partial match (case-insensitive).
+     * Returns exact match if found, otherwise first partial match.
+     * @param partialName The partial or full skin name to search for.
+     * @return The matching skin name, or null if not found.
+     */
+    public String findSkin(String partialName) {
+        if (partialName == null || partialName.isEmpty()) {
+            return null;
+        }
+        String lowerSearch = partialName.toLowerCase();
+
+        // First try exact match (case-insensitive)
+        for (String skin : npcSkins) {
+            if (skin.equalsIgnoreCase(partialName)) {
+                return skin;
+            }
+        }
+
+        // Then try partial match
+        for (String skin : npcSkins) {
+            if (skin.toLowerCase().contains(lowerSearch)) {
+                return skin;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Tries to find a Faction by name (case-insensitive).
      * @param name The name to search for.
      * @return The Faction, or null if not found.

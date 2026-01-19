@@ -12,6 +12,7 @@ import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
@@ -53,11 +54,12 @@ public class CitizenCommand extends CommandBase {
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
         ctx.sendMessage(Message.raw("Usage:"));
-        ctx.sendMessage(Message.raw("  /citizen add [colony] [name] - Add and spawn a citizen"));
+        ctx.sendMessage(Message.raw("  /citizen add [colony] [name] [skin] - Add and spawn a citizen"));
         ctx.sendMessage(Message.raw("  /citizen list [colony] - List citizens"));
-        ctx.sendMessage(Message.raw("  /citizen spawn [colony] [citizen] - Spawn existing citizen"));
+        ctx.sendMessage(Message.raw("  /citizen spawn [colony] [citizen] [skin] - Spawn existing citizen"));
         ctx.sendMessage(Message.raw("  /citizen remove [colony] [citizen] - Remove a citizen"));
         ctx.sendMessage(Message.raw("Note: Colony and citizen can be specified by name or UUID."));
+        ctx.sendMessage(Message.raw("      Skin is optional; uses random faction skin if not specified."));
     }
 
     /**
@@ -170,18 +172,21 @@ public class CitizenCommand extends CommandBase {
         private final ColonyService colonyService;
         private final RequiredArg<String> colonyIdArg;
         private final RequiredArg<String> nameArg;
+        private final OptionalArg<String> skinArg;
 
         public AddSubCommand(ColonyService colonyService) {
             super("add", "Add a citizen to a colony and spawn as NPC");
             this.colonyService = colonyService;
             this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
             this.nameArg = withRequiredArg("name", "Name of the citizen", ArgTypes.STRING);
+            this.skinArg = withOptionalArg("skin", "Specific skin variant (optional)", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
             String colonyIdentifier = ctx.get(colonyIdArg);
             String citizenName = ctx.get(nameArg);
+            String requestedSkin = ctx.get(skinArg);
 
             ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
             if (colony == null) {
@@ -209,6 +214,27 @@ public class CitizenCommand extends CommandBase {
                 return;
             }
 
+            // Resolve skin: use specified skin or random from faction
+            String npcSkin;
+            if (requestedSkin != null && !requestedSkin.isEmpty()) {
+                // Try to find matching skin in faction
+                String foundSkin = colony.getFaction().findSkin(requestedSkin);
+                if (foundSkin != null) {
+                    npcSkin = foundSkin;
+                } else {
+                    ctx.sendMessage(Message.raw("Skin '" + requestedSkin + "' not found in " + colony.getFaction().getDisplayName() + " faction."));
+                    ctx.sendMessage(Message.raw("Available skins: " + String.join(", ", colony.getFaction().getNpcSkins())));
+                    return;
+                }
+            } else {
+                npcSkin = colony.getFaction().getRandomSkin();
+                if (npcSkin == null) {
+                    npcSkin = "Kweebec_Razorleaf"; // Fallback
+                }
+            }
+
+            final String finalNpcSkin = npcSkin;
+
             // All store operations must run on the world thread
             world.execute(() -> {
                 try {
@@ -227,19 +253,13 @@ public class CitizenCommand extends CommandBase {
                         z = transform.getPosition().getZ();
                     }
 
-                    // Select random skin based on faction
-                    String npcSkin = colony.getFaction().getRandomSkin();
-                    if (npcSkin == null) {
-                        npcSkin = "Kweebec_Razorleaf"; // Fallback
-                    }
-
-                    CitizenData citizen = colonyService.addCitizen(colonyId, citizenName, x, y, z, npcSkin, false);
+                    CitizenData citizen = colonyService.addCitizen(colonyId, citizenName, x, y, z, finalNpcSkin, false);
 
                     if (citizen != null) {
-                        boolean spawned = spawnCitizenNPC(store, colonyId, citizen, npcSkin);
+                        boolean spawned = spawnCitizenNPC(store, colonyId, citizen, finalNpcSkin);
 
                         if (spawned) {
-                            ctx.sendMessage(Message.raw("Spawned citizen '" + citizenName + "' (" + npcSkin + ") in " + colony.getName() + "!"));
+                            ctx.sendMessage(Message.raw("Spawned citizen '" + citizenName + "' (" + finalNpcSkin + ") in " + colony.getName() + "!"));
                         } else {
                             ctx.sendMessage(Message.raw("Added citizen '" + citizenName + "' but NPC spawn failed."));
                         }
@@ -300,18 +320,21 @@ public class CitizenCommand extends CommandBase {
         private final ColonyService colonyService;
         private final RequiredArg<String> colonyIdArg;
         private final RequiredArg<String> citizenIdArg;
+        private final OptionalArg<String> skinArg;
 
         public SpawnSubCommand(ColonyService colonyService) {
             super("spawn", "Spawn an existing citizen as an NPC entity");
             this.colonyService = colonyService;
             this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
             this.citizenIdArg = withRequiredArg("citizen", "Citizen name or UUID", ArgTypes.STRING);
+            this.skinArg = withOptionalArg("skin", "Override skin variant (optional)", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
             String colonyIdentifier = ctx.get(colonyIdArg);
             String citizenIdentifier = ctx.get(citizenIdArg);
+            String requestedSkin = ctx.get(skinArg);
 
             ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
             if (colony == null) {
@@ -343,6 +366,26 @@ public class CitizenCommand extends CommandBase {
                 return;
             }
 
+            // Resolve skin: use specified skin, or fall back to citizen's stored skin
+            String npcSkin;
+            if (requestedSkin != null && !requestedSkin.isEmpty()) {
+                // Try to find matching skin in faction
+                String foundSkin = colony.getFaction().findSkin(requestedSkin);
+                if (foundSkin != null) {
+                    npcSkin = foundSkin;
+                    // Update the citizen's stored skin
+                    citizen.setNpcSkin(foundSkin);
+                } else {
+                    ctx.sendMessage(Message.raw("Skin '" + requestedSkin + "' not found in " + colony.getFaction().getDisplayName() + " faction."));
+                    ctx.sendMessage(Message.raw("Available skins: " + String.join(", ", colony.getFaction().getNpcSkins())));
+                    return;
+                }
+            } else {
+                npcSkin = citizen.getNpcSkin();
+            }
+
+            final String finalNpcSkin = npcSkin;
+
             // All store operations must run on the world thread
             world.execute(() -> {
                 try {
@@ -366,10 +409,10 @@ public class CitizenCommand extends CommandBase {
 
                     citizen.updateLastPosition(x, y, z);
 
-                    boolean spawned = spawnCitizenNPC(store, colonyId, citizen, citizen.getNpcSkin());
+                    boolean spawned = spawnCitizenNPC(store, colonyId, citizen, finalNpcSkin);
 
                     if (spawned) {
-                        ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' at " +
+                        ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' (" + finalNpcSkin + ") at " +
                                 (int) x + ", " + (int) y + ", " + (int) z));
                     } else {
                         ctx.sendMessage(Message.raw("Failed to spawn citizen '" + citizen.getName() + "'."));
