@@ -76,12 +76,12 @@ public class WanderSystem extends EntityTickingSystem<EntityStore> {
         tickCounter++;
 
         // Log periodically to verify system is running
-        if (tickCounter >= LOG_INTERVAL) {
-            tickCounter = 0;
-            LOGGER.atInfo().log("WanderSystem tick - Citizen: %s (Colony: %s)",
-                    citizen.getCitizenName(),
-                    citizen.getColonyId() != null ? citizen.getColonyId().toString().substring(0, 8) : "none");
-        }
+//        if (tickCounter >= LOG_INTERVAL) {
+//            tickCounter = 0;
+//            LOGGER.atInfo().log("WanderSystem tick - Citizen: %s (Colony: %s)",
+//                    citizen.getCitizenName(),
+//                    citizen.getColonyId() != null ? citizen.getColonyId().toString().substring(0, 8) : "none");
+//        }
 
         // Phase 1: Basic wandering behavior placeholder
         // Future implementation will:
