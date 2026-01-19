@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Outlander",
+  "Modify": {
+    "Appearance": "Outlander_Marauder",
+    "DropList": "Drop_Outlander_Marauder",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Outlander_Marauder.name"
+  }
+}

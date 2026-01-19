@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Outlander",
+  "Modify": {
+    "Appearance": "Outlander_Hunter",
+    "DropList": "Drop_Outlander_Hunter",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Outlander_Hunter.name"
+  }
+}

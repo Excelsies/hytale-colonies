@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Outlander",
+  "Modify": {
+    "Appearance": "Outlander_Stalker",
+    "DropList": "Drop_Outlander_Stalker",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Outlander_Stalker.name"
+  }
+}

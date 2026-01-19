@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Slothian",
+  "Modify": {
+    "Appearance": "Slothian_Monk",
+    "DropList": "Drop_Slothian",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Slothian_Monk.name"
+  }
+}
