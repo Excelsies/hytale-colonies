@@ -1,0 +1,9 @@
+{
+  "Parent": "Tuluk",
+  "DefaultAttachments": [
+    {
+      "Model": "NPC/Intelligent/Tuluk/Models/Attachments/Eyes/Eyes_Tuluk.blockymodel",
+      "Texture": "NPC/Intelligent/Tuluk/Models/Attachments/Eyes/Eyes_Tuluk_Texture_Brown.png"
+    }
+  ]
+}

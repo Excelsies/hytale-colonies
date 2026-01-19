@@ -2,7 +2,7 @@
   "Type": "Variant",
   "Reference": "Template_Tuluk",
   "Modify": {
-    "Appearance": "Tuluk",
+    "Appearance": "Tuluk_Citizen",
     "DropList": "Drop_Kweebec",
     "MaxHealth": 62,
     "IsMemory": false,
