@@ -17,7 +17,7 @@ import java.util.UUID;
  * Command for creating and managing colonies.
  *
  * Usage:
- * - /colony create [name] - Creates a new colony
+ * - /colony create [name] [faction] - Creates a new colony
  * - /colony list - Lists all colonies
  * - /colony info [id] - Shows colony info
  * - /colony save - Saves all colony data
@@ -123,8 +123,8 @@ public class ColonyCommand extends CommandBase {
             ctx.sendMessage(Message.raw("=== Colonies ==="));
             for (ColonyData colony : colonies) {
                 ctx.sendMessage(Message.raw("  " + colony.getName() +
-                        " (ID: " + colony.getColonyId().toString().substring(0, 8) + "...) " +
-                        "Pop: " + colony.getPopulation()));
+                        " [" + colony.getFaction().getDisplayName() + "] Pop: " + colony.getPopulation()));
+                ctx.sendMessage(Message.raw("    ID: " + colony.getColonyId()));
             }
         }
     }
@@ -134,25 +134,33 @@ public class ColonyCommand extends CommandBase {
     // =====================
     private static class InfoSubCommand extends CommandBase {
         private final ColonyService colonyService;
-        private final RequiredArg<UUID> idArg;
+        private final RequiredArg<String> idArg;
 
         public InfoSubCommand(ColonyService colonyService) {
             super("info", "Show colony information");
             this.colonyService = colonyService;
-            this.idArg = withRequiredArg("id", "Colony UUID", ArgTypes.UUID);
+            this.idArg = withRequiredArg("id", "Colony name or UUID", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
-            UUID colonyId = ctx.get(idArg);
+            String identifier = ctx.get(idArg);
 
-            var colonyOpt = colonyService.getColony(colonyId);
-            if (colonyOpt.isEmpty()) {
-                ctx.sendMessage(Message.raw("Colony not found."));
+            var result = colonyService.resolveColony(identifier);
+            if (result.isNotFound()) {
+                ctx.sendMessage(Message.raw("Colony not found: " + identifier));
+                return;
+            }
+            if (result.hasMultipleMatches()) {
+                ctx.sendMessage(Message.raw("Multiple colonies found with name '" + identifier + "'. Please specify UUID:"));
+                for (ColonyData match : result.getMultipleMatches()) {
+                    ctx.sendMessage(Message.raw("  - " + match.getName() + " [" + match.getFaction().getDisplayName() + "]"));
+                    ctx.sendMessage(Message.raw("    ID: " + match.getColonyId()));
+                }
                 return;
             }
 
-            ColonyData colony = colonyOpt.get();
+            ColonyData colony = result.getColony();
             ctx.sendMessage(Message.raw("=== " + colony.getName() + " ==="));
             ctx.sendMessage(Message.raw("ID: " + colony.getColonyId()));
             ctx.sendMessage(Message.raw("Faction: " + colony.getFaction().getDisplayName()));
@@ -194,29 +202,37 @@ public class ColonyCommand extends CommandBase {
     // =====================
     private static class DeleteSubCommand extends CommandBase {
         private final ColonyService colonyService;
-        private final RequiredArg<UUID> idArg;
+        private final RequiredArg<String> idArg;
 
         public DeleteSubCommand(ColonyService colonyService) {
             super("delete", "Delete a colony and all its citizens");
             this.colonyService = colonyService;
-            this.idArg = withRequiredArg("id", "Colony UUID", ArgTypes.UUID);
+            this.idArg = withRequiredArg("id", "Colony name or UUID", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
-            UUID colonyId = ctx.get(idArg);
+            String identifier = ctx.get(idArg);
 
-            var colonyOpt = colonyService.getColony(colonyId);
-            if (colonyOpt.isEmpty()) {
-                ctx.sendMessage(Message.raw("Colony not found."));
+            var result = colonyService.resolveColony(identifier);
+            if (result.isNotFound()) {
+                ctx.sendMessage(Message.raw("Colony not found: " + identifier));
+                return;
+            }
+            if (result.hasMultipleMatches()) {
+                ctx.sendMessage(Message.raw("Multiple colonies found with name '" + identifier + "'. Please specify UUID:"));
+                for (ColonyData match : result.getMultipleMatches()) {
+                    ctx.sendMessage(Message.raw("  - " + match.getName() + " [" + match.getFaction().getDisplayName() + "]"));
+                    ctx.sendMessage(Message.raw("    ID: " + match.getColonyId()));
+                }
                 return;
             }
 
-            ColonyData colony = colonyOpt.get();
+            ColonyData colony = result.getColony();
             String colonyName = colony.getName();
             int citizenCount = colony.getPopulation();
 
-            ColonyData deleted = colonyService.deleteColony(colonyId);
+            ColonyData deleted = colonyService.deleteColony(colony.getColonyId());
 
             if (deleted != null) {
                 ctx.sendMessage(Message.raw("Deleted colony '" + colonyName + "'."));

@@ -143,6 +143,165 @@ public class ColonyService {
     }
 
     /**
+     * Finds colonies by name (case-insensitive).
+     *
+     * @param name The colony name to search for
+     * @return List of colonies matching the name
+     */
+    public List<ColonyData> getColoniesByName(String name) {
+        return loadedColonies.values().stream()
+                .filter(c -> c.getName().equalsIgnoreCase(name))
+                .toList();
+    }
+
+    /**
+     * Resolves a colony identifier (UUID string or name).
+     * If the identifier is a valid UUID, looks up by UUID.
+     * If not, looks up by name.
+     *
+     * @param identifier The UUID string or colony name
+     * @return ResolveResult containing the colony, multiple matches, or not found
+     */
+    public ColonyResolveResult resolveColony(String identifier) {
+        // Try to parse as UUID first
+        try {
+            UUID uuid = UUID.fromString(identifier);
+            Optional<ColonyData> colony = getColony(uuid);
+            if (colony.isPresent()) {
+                return ColonyResolveResult.found(colony.get());
+            }
+            return ColonyResolveResult.notFound();
+        } catch (IllegalArgumentException e) {
+            // Not a UUID, try name lookup
+            List<ColonyData> matches = getColoniesByName(identifier);
+            if (matches.isEmpty()) {
+                return ColonyResolveResult.notFound();
+            } else if (matches.size() == 1) {
+                return ColonyResolveResult.found(matches.get(0));
+            } else {
+                return ColonyResolveResult.multiple(matches);
+            }
+        }
+    }
+
+    /**
+     * Finds citizens by name within a colony (case-insensitive).
+     *
+     * @param colonyId The colony UUID
+     * @param name     The citizen name to search for
+     * @return List of citizens matching the name
+     */
+    public List<CitizenData> getCitizensByName(UUID colonyId, String name) {
+        ColonyData colony = loadedColonies.get(colonyId);
+        if (colony == null) {
+            return List.of();
+        }
+        return colony.getCitizens().stream()
+                .filter(c -> c.getName().equalsIgnoreCase(name))
+                .toList();
+    }
+
+    /**
+     * Resolves a citizen identifier (UUID string or name) within a colony.
+     *
+     * @param colonyId   The colony UUID
+     * @param identifier The UUID string or citizen name
+     * @return CitizenResolveResult containing the citizen, multiple matches, or not found
+     */
+    public CitizenResolveResult resolveCitizen(UUID colonyId, String identifier) {
+        ColonyData colony = loadedColonies.get(colonyId);
+        if (colony == null) {
+            return CitizenResolveResult.notFound();
+        }
+
+        // Try to parse as UUID first
+        try {
+            UUID uuid = UUID.fromString(identifier);
+            CitizenData citizen = colony.getCitizen(uuid);
+            if (citizen != null) {
+                return CitizenResolveResult.found(citizen);
+            }
+            return CitizenResolveResult.notFound();
+        } catch (IllegalArgumentException e) {
+            // Not a UUID, try name lookup
+            List<CitizenData> matches = getCitizensByName(colonyId, identifier);
+            if (matches.isEmpty()) {
+                return CitizenResolveResult.notFound();
+            } else if (matches.size() == 1) {
+                return CitizenResolveResult.found(matches.get(0));
+            } else {
+                return CitizenResolveResult.multiple(matches);
+            }
+        }
+    }
+
+    /**
+     * Result of resolving a colony by name or UUID.
+     */
+    public static class ColonyResolveResult {
+        private final ColonyData colony;
+        private final List<ColonyData> multipleMatches;
+        private final boolean found;
+
+        private ColonyResolveResult(ColonyData colony, List<ColonyData> multipleMatches, boolean found) {
+            this.colony = colony;
+            this.multipleMatches = multipleMatches;
+            this.found = found;
+        }
+
+        public static ColonyResolveResult found(ColonyData colony) {
+            return new ColonyResolveResult(colony, null, true);
+        }
+
+        public static ColonyResolveResult multiple(List<ColonyData> matches) {
+            return new ColonyResolveResult(null, matches, false);
+        }
+
+        public static ColonyResolveResult notFound() {
+            return new ColonyResolveResult(null, null, false);
+        }
+
+        public boolean isFound() { return found; }
+        public boolean hasMultipleMatches() { return multipleMatches != null && !multipleMatches.isEmpty(); }
+        public boolean isNotFound() { return !found && multipleMatches == null; }
+        public ColonyData getColony() { return colony; }
+        public List<ColonyData> getMultipleMatches() { return multipleMatches; }
+    }
+
+    /**
+     * Result of resolving a citizen by name or UUID.
+     */
+    public static class CitizenResolveResult {
+        private final CitizenData citizen;
+        private final List<CitizenData> multipleMatches;
+        private final boolean found;
+
+        private CitizenResolveResult(CitizenData citizen, List<CitizenData> multipleMatches, boolean found) {
+            this.citizen = citizen;
+            this.multipleMatches = multipleMatches;
+            this.found = found;
+        }
+
+        public static CitizenResolveResult found(CitizenData citizen) {
+            return new CitizenResolveResult(citizen, null, true);
+        }
+
+        public static CitizenResolveResult multiple(List<CitizenData> matches) {
+            return new CitizenResolveResult(null, matches, false);
+        }
+
+        public static CitizenResolveResult notFound() {
+            return new CitizenResolveResult(null, null, false);
+        }
+
+        public boolean isFound() { return found; }
+        public boolean hasMultipleMatches() { return multipleMatches != null && !multipleMatches.isEmpty(); }
+        public boolean isNotFound() { return !found && multipleMatches == null; }
+        public CitizenData getCitizen() { return citizen; }
+        public List<CitizenData> getMultipleMatches() { return multipleMatches; }
+    }
+
+    /**
      * Adds a citizen to a colony (data only - no in-world entity).
      * Entity spawning should be handled separately via CitizenCommand.
      *

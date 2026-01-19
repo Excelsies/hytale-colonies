@@ -53,10 +53,54 @@ public class CitizenCommand extends CommandBase {
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
         ctx.sendMessage(Message.raw("Usage:"));
-        ctx.sendMessage(Message.raw("  /citizen add [colony-id] [name] - Add and spawn a citizen"));
-        ctx.sendMessage(Message.raw("  /citizen list [colony-id] - List citizens"));
-        ctx.sendMessage(Message.raw("  /citizen spawn [colony-id] [citizen-id] - Spawn existing citizen"));
-        ctx.sendMessage(Message.raw("  /citizen remove [colony-id] [citizen-id] - Remove a citizen"));
+        ctx.sendMessage(Message.raw("  /citizen add [colony] [name] - Add and spawn a citizen"));
+        ctx.sendMessage(Message.raw("  /citizen list [colony] - List citizens"));
+        ctx.sendMessage(Message.raw("  /citizen spawn [colony] [citizen] - Spawn existing citizen"));
+        ctx.sendMessage(Message.raw("  /citizen remove [colony] [citizen] - Remove a citizen"));
+        ctx.sendMessage(Message.raw("Note: Colony and citizen can be specified by name or UUID."));
+    }
+
+    /**
+     * Helper to resolve a colony and send error messages if needed.
+     * Returns the colony if found uniquely, null otherwise (with messages sent).
+     */
+    private static ColonyData resolveColonyWithFeedback(ColonyService colonyService, CommandContext ctx, String identifier) {
+        var result = colonyService.resolveColony(identifier);
+        if (result.isNotFound()) {
+            ctx.sendMessage(Message.raw("Colony not found: " + identifier));
+            return null;
+        }
+        if (result.hasMultipleMatches()) {
+            ctx.sendMessage(Message.raw("Multiple colonies found with name '" + identifier + "'. Please specify UUID:"));
+            for (ColonyData match : result.getMultipleMatches()) {
+                ctx.sendMessage(Message.raw("  - " + match.getName() + " [" + match.getFaction().getDisplayName() + "]"));
+                ctx.sendMessage(Message.raw("    ID: " + match.getColonyId()));
+            }
+            return null;
+        }
+        return result.getColony();
+    }
+
+    /**
+     * Helper to resolve a citizen and send error messages if needed.
+     * Returns the citizen if found uniquely, null otherwise (with messages sent).
+     */
+    private static CitizenData resolveCitizenWithFeedback(ColonyService colonyService, CommandContext ctx,
+                                                           ColonyData colony, String identifier) {
+        var result = colonyService.resolveCitizen(colony.getColonyId(), identifier);
+        if (result.isNotFound()) {
+            ctx.sendMessage(Message.raw("Citizen not found in " + colony.getName() + ": " + identifier));
+            return null;
+        }
+        if (result.hasMultipleMatches()) {
+            ctx.sendMessage(Message.raw("Multiple citizens found with name '" + identifier + "'. Please specify UUID:"));
+            for (CitizenData match : result.getMultipleMatches()) {
+                ctx.sendMessage(Message.raw("  - " + match.getName() + " (" + match.getNpcSkin() + ")"));
+                ctx.sendMessage(Message.raw("    ID: " + match.getCitizenId()));
+            }
+            return null;
+        }
+        return result.getCitizen();
     }
 
     /**
@@ -124,28 +168,27 @@ public class CitizenCommand extends CommandBase {
     // =====================
     private static class AddSubCommand extends CommandBase {
         private final ColonyService colonyService;
-        private final RequiredArg<UUID> colonyIdArg;
+        private final RequiredArg<String> colonyIdArg;
         private final RequiredArg<String> nameArg;
 
         public AddSubCommand(ColonyService colonyService) {
             super("add", "Add a citizen to a colony and spawn as NPC");
             this.colonyService = colonyService;
-            this.colonyIdArg = withRequiredArg("colony-id", "UUID of the colony", ArgTypes.UUID);
+            this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
             this.nameArg = withRequiredArg("name", "Name of the citizen", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
-            UUID colonyId = ctx.get(colonyIdArg);
+            String colonyIdentifier = ctx.get(colonyIdArg);
             String citizenName = ctx.get(nameArg);
 
-            var colonyOpt = colonyService.getColony(colonyId);
-            if (colonyOpt.isEmpty()) {
-                ctx.sendMessage(Message.raw("Colony not found."));
+            ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
+            if (colony == null) {
                 return;
             }
 
-            ColonyData colony = colonyOpt.get();
+            UUID colonyId = colony.getColonyId();
 
             if (!ctx.isPlayer()) {
                 ctx.sendMessage(Message.raw("This command must be run by a player."));
@@ -218,25 +261,22 @@ public class CitizenCommand extends CommandBase {
     // =====================
     private static class ListSubCommand extends CommandBase {
         private final ColonyService colonyService;
-        private final RequiredArg<UUID> colonyIdArg;
+        private final RequiredArg<String> colonyIdArg;
 
         public ListSubCommand(ColonyService colonyService) {
             super("list", "List citizens in a colony");
             this.colonyService = colonyService;
-            this.colonyIdArg = withRequiredArg("colony-id", "UUID of the colony", ArgTypes.UUID);
+            this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
-            UUID colonyId = ctx.get(colonyIdArg);
+            String colonyIdentifier = ctx.get(colonyIdArg);
 
-            var colonyOpt = colonyService.getColony(colonyId);
-            if (colonyOpt.isEmpty()) {
-                ctx.sendMessage(Message.raw("Colony not found."));
+            ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
+            if (colony == null) {
                 return;
             }
-
-            ColonyData colony = colonyOpt.get();
 
             if (colony.getPopulation() == 0) {
                 ctx.sendMessage(Message.raw("Colony '" + colony.getName() + "' has no citizens yet."));
@@ -246,10 +286,10 @@ public class CitizenCommand extends CommandBase {
 
             ctx.sendMessage(Message.raw("=== Citizens of " + colony.getName() + " ==="));
             ctx.sendMessage(Message.raw("Population: " + colony.getPopulation()));
-            colony.getCitizens().forEach(citizen ->
-                    ctx.sendMessage(Message.raw("  - " + citizen.getName() +
-                            " (ID: " + citizen.getCitizenId().toString().substring(0, 8) + "...)"))
-            );
+            colony.getCitizens().forEach(citizen -> {
+                ctx.sendMessage(Message.raw("  - " + citizen.getName() + " (" + citizen.getNpcSkin() + ")"));
+                ctx.sendMessage(Message.raw("    ID: " + citizen.getCitizenId()));
+            });
         }
     }
 
@@ -258,32 +298,29 @@ public class CitizenCommand extends CommandBase {
     // =====================
     private static class SpawnSubCommand extends CommandBase {
         private final ColonyService colonyService;
-        private final RequiredArg<UUID> colonyIdArg;
-        private final RequiredArg<UUID> citizenIdArg;
+        private final RequiredArg<String> colonyIdArg;
+        private final RequiredArg<String> citizenIdArg;
 
         public SpawnSubCommand(ColonyService colonyService) {
             super("spawn", "Spawn an existing citizen as an NPC entity");
             this.colonyService = colonyService;
-            this.colonyIdArg = withRequiredArg("colony-id", "UUID of the colony", ArgTypes.UUID);
-            this.citizenIdArg = withRequiredArg("citizen-id", "UUID of the citizen", ArgTypes.UUID);
+            this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
+            this.citizenIdArg = withRequiredArg("citizen", "Citizen name or UUID", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
-            UUID colonyId = ctx.get(colonyIdArg);
-            UUID citizenId = ctx.get(citizenIdArg);
+            String colonyIdentifier = ctx.get(colonyIdArg);
+            String citizenIdentifier = ctx.get(citizenIdArg);
 
-            var colonyOpt = colonyService.getColony(colonyId);
-            if (colonyOpt.isEmpty()) {
-                ctx.sendMessage(Message.raw("Colony not found."));
+            ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
+            if (colony == null) {
                 return;
             }
 
-            ColonyData colony = colonyOpt.get();
-            CitizenData citizen = colony.getCitizen(citizenId);
-
+            UUID colonyId = colony.getColonyId();
+            CitizenData citizen = resolveCitizenWithFeedback(colonyService, ctx, colony, citizenIdentifier);
             if (citizen == null) {
-                ctx.sendMessage(Message.raw("Citizen not found in colony."));
                 return;
             }
 
@@ -350,29 +387,32 @@ public class CitizenCommand extends CommandBase {
     // =====================
     private static class RemoveSubCommand extends CommandBase {
         private final ColonyService colonyService;
-        private final RequiredArg<UUID> colonyIdArg;
-        private final RequiredArg<UUID> citizenIdArg;
+        private final RequiredArg<String> colonyIdArg;
+        private final RequiredArg<String> citizenIdArg;
 
         public RemoveSubCommand(ColonyService colonyService) {
             super("remove", "Remove a citizen from a colony");
             this.colonyService = colonyService;
-            this.colonyIdArg = withRequiredArg("colony-id", "UUID of the colony", ArgTypes.UUID);
-            this.citizenIdArg = withRequiredArg("citizen-id", "UUID of the citizen", ArgTypes.UUID);
+            this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
+            this.citizenIdArg = withRequiredArg("citizen", "Citizen name or UUID", ArgTypes.STRING);
         }
 
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
-            UUID colonyId = ctx.get(colonyIdArg);
-            UUID citizenId = ctx.get(citizenIdArg);
+            String colonyIdentifier = ctx.get(colonyIdArg);
+            String citizenIdentifier = ctx.get(citizenIdArg);
 
-            var colonyOpt = colonyService.getColony(colonyId);
-            if (colonyOpt.isEmpty()) {
-                ctx.sendMessage(Message.raw("Colony not found."));
+            ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
+            if (colony == null) {
                 return;
             }
 
-            ColonyData colony = colonyOpt.get();
-            CitizenData removed = colonyService.removeCitizen(colonyId, citizenId);
+            CitizenData citizen = resolveCitizenWithFeedback(colonyService, ctx, colony, citizenIdentifier);
+            if (citizen == null) {
+                return;
+            }
+
+            CitizenData removed = colonyService.removeCitizen(colony.getColonyId(), citizen.getCitizenId());
 
             if (removed != null) {
                 ctx.sendMessage(Message.raw("Removed citizen '" + removed.getName() + "' from " + colony.getName() + "."));
