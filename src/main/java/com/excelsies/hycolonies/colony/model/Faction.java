@@ -20,7 +20,7 @@ public enum Faction {
     ),
     KLOPS(
             "Klops",
-            "Klops_Citizen", "Klops_Gentleman", "Klops_Merchant", "Klops_Miner"
+            "Klops_Citizen", "Klops_Citizen_Gentleman", "Klops_Citizen_Merchant", "Klops_Citizen_Miner"
     ),
     SLOTHIAN(
             "Slothian",
