@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Trork",
+  "Modify": {
+    "Appearance": "Trork_Shaman",
+    "DropList": "Drop_Trork_Shaman",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Trork_Shaman.name"
+  }
+}

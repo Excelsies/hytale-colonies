@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Trork",
+  "Modify": {
+    "Appearance": "Trork_Chieftain",
+    "DropList": "Drop_Trork_Chieftain",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Trork_Chieftain.name"
+  }
+}

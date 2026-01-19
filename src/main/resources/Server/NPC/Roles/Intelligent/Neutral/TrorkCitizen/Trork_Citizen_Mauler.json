@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Trork",
+  "Modify": {
+    "Appearance": "Trork_Mauler",
+    "DropList": "Drop_Trork_Mauler",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Trork_Mauler.name"
+  }
+}

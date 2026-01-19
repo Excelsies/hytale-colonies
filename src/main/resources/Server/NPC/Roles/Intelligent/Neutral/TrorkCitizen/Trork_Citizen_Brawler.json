@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Trork",
+  "Modify": {
+    "Appearance": "Trork_Brawler",
+    "DropList": "Drop_Trork_Brawler",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Trork_Brawler.name"
+  }
+}

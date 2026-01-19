@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Trork",
+  "Modify": {
+    "Appearance": "Trork_Sentry",
+    "DropList": "Drop_Trork_Sentry",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Trork_Sentry.name"
+  }
+}
