@@ -33,13 +33,18 @@ public enum Faction {
     ),
     TRORK(
             "Trork",
-            "Trork_Brawler", "Trork_Chieftain", "Trork_Doctor_Witch", "Trork_Guard", "Trork_Hunter",
-            "Trork_Mauler", "Trork_Sentry", "Trork_Shaman", "Trork_Unarmed", "Trork_Warrior"
+            "Trork_Citizen_Brawler", "Trork_Citizen_Chieftain", "Trork_Citizen_Doctor_Witch", "Trork_Citizen_Guard",
+            "Trork_Citizen_Hunter", "Trork_Citizen_Mauler", "Trork_Citizen_Sentry", "Trork_Citizen_Shaman",
+            "Trork_Citizen_Unarmed", "Trork_Citizen_Warrior"
     ),
     GOBLIN(
             "Goblin",
-            "Goblin_Hermit", "Goblin_Lobber", "Goblin_Miner",
-            "Goblin_Scavenger", "Goblin_Scrapper", "Goblin_Thief"
+            "Goblin_Citizen_Hermit", "Goblin_Citizen_Lobber", "Goblin_Citizen_Miner",
+            "Goblin_Citizen_Scavenger", "Goblin_Citizen_Scrapper", "Goblin_Citizen_Thief"
+    ),
+    BRAMBLEKIN(
+            "Bramblekin",
+            "Bramblekin_Citizen", "Bramblekin_Citizen_Shaman"
     );
 
     private final String displayName;
