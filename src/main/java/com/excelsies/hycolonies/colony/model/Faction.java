@@ -24,7 +24,7 @@ public enum Faction {
     ),
     SLOTHIAN(
             "Slothian",
-            "Slothian_Elder", "Slothian_Kid", "Slothian_Monk", "Slothian_Scout", "Slothian_Villager", "Slothian_Warrior"
+            "Slothian_Citizen_Elder", "Slothian_Citizen_Kid", "Slothian_Citizen_Monk", "Slothian_Citizen_Scout", "Slothian_Citizen_Villager", "Slothian_Citizen_Warrior"
     ),
     OUTLANDER(
             "Outlander",
