@@ -321,7 +321,7 @@
                         "Compute": "ViewSector"
                       },
                       "Attitudes": [
-                        "Neutral"
+                        "Hostile"
                       ]
                     }
                   },
@@ -332,7 +332,7 @@
                         "Compute": "HearingRange"
                       },
                       "Attitudes": [
-                        "Neutral"
+                        "Hostile"
                       ]
                     }
                   }
@@ -561,7 +561,7 @@
                       {
                         "Type": "Attitude",
                         "Attitudes": [
-                          "Neutral"
+                          "Hostile"
                         ]
                       }
                     ]
@@ -602,6 +602,7 @@
                           "Compute": "ViewSector"
                         },
                         "Attitudes": [
+                          "Hostile",
                           "Neutral"
                         ]
                       }
@@ -613,6 +614,7 @@
                           "Compute": "HearingRange"
                         },
                         "Attitudes": [
+                          "Hostile",
                           "Neutral"
                         ]
                       }
@@ -668,7 +670,7 @@
               "Actions": [
                 {
                   "Type": "OverrideAttitude",
-                  "Attitude": "Neutral",
+                  "Attitude": "Hostile",
                   "Duration": 600
                 }
               ]
