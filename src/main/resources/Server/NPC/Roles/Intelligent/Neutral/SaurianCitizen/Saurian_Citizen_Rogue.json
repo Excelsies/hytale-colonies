@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Saurian",
+  "Modify": {
+    "Appearance": "Saurian_Rogue",
+    "DropList": "Drop_Kweebec",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Saurian_Rogue.name"
+  }
+}

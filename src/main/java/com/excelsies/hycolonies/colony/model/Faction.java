@@ -20,7 +20,7 @@ public enum Faction {
     ),
     KLOPS(
             "Klops",
-            "Klops_Gentleman", "Klops_Merchant", "Klops_Miner"
+            "Klops_Citizen", "Klops_Gentleman", "Klops_Merchant", "Klops_Miner"
     ),
     SLOTHIAN(
             "Slothian",
@@ -45,6 +45,14 @@ public enum Faction {
     BRAMBLEKIN(
             "Bramblekin",
             "Bramblekin_Citizen", "Bramblekin_Citizen_Shaman"
+    ),
+    SAURIAN(
+            "Saurian",
+            "Saurian_Citizen", "Saurian_Citizen_Hunter", "Saurian_Citizen_Rogue", "Saurian_Citizen_Warrior"
+    ),
+    TULUK(
+            "Tuluk",
+            "Tuluk_Citizen", "Tuluk_Citizen_Fisherman"
     );
 
     private final String displayName;

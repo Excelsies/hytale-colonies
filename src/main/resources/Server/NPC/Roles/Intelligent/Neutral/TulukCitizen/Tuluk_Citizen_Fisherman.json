@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Tuluk",
+  "Modify": {
+    "Appearance": "Tuluk_Fisherman",
+    "DropList": "Drop_Kweebec",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Tuluk_Fisherman.name"
+  }
+}

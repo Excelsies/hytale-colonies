@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Tuluk",
+  "Modify": {
+    "Appearance": "Tuluk",
+    "DropList": "Drop_Kweebec",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Tuluk.name"
+  }
+}
