@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Goblin",
+  "Modify": {
+    "Appearance": "Goblin_Miner",
+    "DropList": "Drop_Goblin_Miner",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Goblin_Miner.name"
+  }
+}

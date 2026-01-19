@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Goblin",
+  "Modify": {
+    "Appearance": "Goblin_Scrapper",
+    "DropList": "Drop_Goblin_Scrapper",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Goblin_Scrapper.name"
+  }
+}

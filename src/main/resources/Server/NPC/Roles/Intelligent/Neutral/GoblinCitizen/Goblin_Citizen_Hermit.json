@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Goblin",
+  "Modify": {
+    "Appearance": "Goblin_Hermit",
+    "DropList": "Drop_Goblin_Hermit",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Goblin_Hermit.name"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Goblin",
+  "Modify": {
+    "Appearance": "Goblin",
+    "DropList": "Drop_Goblin",
+    "MaxHealth": 62,
+    "IsMemory": false,
+    "NameTranslationKey": "server.npcRoles.Goblin_Scavenger.name"
+  }
+}
