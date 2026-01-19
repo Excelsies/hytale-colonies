@@ -10,6 +10,7 @@ import java.util.Random;
  * Determines which NPC types can be spawned as citizens.
  */
 public enum Faction {
+    AVATAR("Avatar", "Avatar_Citizen"),
     KWEEBEC("Kweebec",
             "Kweebec_Elder", "Kweebec_Merchant", "Kweebec_Razorleaf", "Kweebec_Rootling",
             "Kweebec_Sapling_Orange", "Kweebec_Sapling_Pink", "Kweebec_Seedling", "Kweebec_Sproutling"
