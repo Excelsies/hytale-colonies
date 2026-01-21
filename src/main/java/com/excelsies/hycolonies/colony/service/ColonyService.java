@@ -3,7 +3,9 @@ package com.excelsies.hycolonies.colony.service;
 import com.excelsies.hycolonies.colony.model.CitizenData;
 import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.storage.ColonyStorage;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +32,7 @@ public class ColonyService {
     private final ColonyStorage storage;
     private final Map<UUID, ColonyData> loadedColonies;
     private final Map<UUID, UUID> playerColonyMap;  // Player UUID -> Colony UUID
+    private final Map<UUID, Ref<EntityStore>> citizenEntityMap;  // Citizen UUID -> Entity Ref
 
     /**
      * Creates a new ColonyService.
@@ -40,6 +43,7 @@ public class ColonyService {
         this.storage = storage;
         this.loadedColonies = new ConcurrentHashMap<>();
         this.playerColonyMap = new ConcurrentHashMap<>();
+        this.citizenEntityMap = new ConcurrentHashMap<>();
     }
 
     /**
@@ -444,6 +448,58 @@ public class ColonyService {
         return loadedColonies.size();
     }
 
+    // === Entity Reference Tracking ===
+
+    /**
+     * Registers an entity reference for a citizen.
+     * Called when a citizen NPC is spawned in the world.
+     *
+     * @param citizenId The citizen UUID
+     * @param entityRef The entity reference
+     */
+    public void registerCitizenEntity(UUID citizenId, Ref<EntityStore> entityRef) {
+        citizenEntityMap.put(citizenId, entityRef);
+        LOGGER.atFine().log("Registered entity for citizen %s", citizenId.toString().substring(0, 8));
+    }
+
+    /**
+     * Unregisters an entity reference for a citizen.
+     * Called when a citizen NPC is despawned or removed.
+     *
+     * @param citizenId The citizen UUID
+     */
+    public void unregisterCitizenEntity(UUID citizenId) {
+        citizenEntityMap.remove(citizenId);
+        LOGGER.atFine().log("Unregistered entity for citizen %s", citizenId.toString().substring(0, 8));
+    }
+
+    /**
+     * Gets the entity reference for a citizen.
+     *
+     * @param citizenId The citizen UUID
+     * @return The entity reference, or null if not spawned
+     */
+    public Ref<EntityStore> getCitizenEntity(UUID citizenId) {
+        return citizenEntityMap.get(citizenId);
+    }
+
+    /**
+     * Checks if a citizen has a spawned entity.
+     *
+     * @param citizenId The citizen UUID
+     * @return true if the citizen has a registered entity
+     */
+    public boolean isCitizenSpawned(UUID citizenId) {
+        return citizenEntityMap.containsKey(citizenId);
+    }
+
+    /**
+     * Gets the number of spawned citizen entities.
+     */
+    public int getSpawnedCitizenCount() {
+        return citizenEntityMap.size();
+    }
+
     /**
      * Shuts down the service, saving all data.
      */
@@ -452,6 +508,7 @@ public class ColonyService {
         saveAll();
         loadedColonies.clear();
         playerColonyMap.clear();
+        citizenEntityMap.clear();
         LOGGER.atInfo().log("ColonyService shutdown complete");
     }
 }

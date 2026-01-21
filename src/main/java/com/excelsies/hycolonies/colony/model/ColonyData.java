@@ -1,5 +1,8 @@
 package com.excelsies.hycolonies.colony.model;
 
+import com.excelsies.hycolonies.warehouse.WarehouseData;
+import com.hypixel.hytale.math.vector.Vector3i;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,6 +24,7 @@ public class ColonyData {
     private String worldId;
     private Faction faction;
     private List<CitizenData> citizens;
+    private List<WarehouseData> warehouses;
 
     /**
      * Default constructor for JSON deserialization.
@@ -36,6 +40,7 @@ public class ColonyData {
         this.worldId = "default";
         this.faction = Faction.KWEEBEC;
         this.citizens = new ArrayList<>();
+        this.warehouses = new ArrayList<>();
     }
 
     /**
@@ -53,6 +58,7 @@ public class ColonyData {
         this.worldId = worldId;
         this.faction = faction != null ? faction : Faction.KWEEBEC;
         this.citizens = new ArrayList<>();
+        this.warehouses = new ArrayList<>();
     }
 
     // Getters
@@ -138,5 +144,65 @@ public class ColonyData {
                 .filter(c -> c.getCitizenId().equals(citizenId))
                 .findFirst()
                 .orElse(null);
+    }
+
+    // Warehouse management
+    /**
+     * Returns an unmodifiable view of the warehouses list.
+     */
+    public List<WarehouseData> getWarehouses() {
+        if (warehouses == null) {
+            warehouses = new ArrayList<>();
+        }
+        return Collections.unmodifiableList(warehouses);
+    }
+
+    /**
+     * Returns the number of registered warehouses.
+     */
+    public int getWarehouseCount() {
+        return warehouses != null ? warehouses.size() : 0;
+    }
+
+    /**
+     * Adds a warehouse to this colony.
+     */
+    public void addWarehouse(WarehouseData warehouse) {
+        if (warehouses == null) {
+            warehouses = new ArrayList<>();
+        }
+        // Check for duplicates by position
+        if (!hasWarehouseAt(warehouse.getPosition())) {
+            this.warehouses.add(warehouse);
+        }
+    }
+
+    /**
+     * Removes a warehouse by its position.
+     */
+    public void removeWarehouse(Vector3i position) {
+        if (warehouses != null) {
+            warehouses.removeIf(w -> w.isAtPosition(position));
+        }
+    }
+
+    /**
+     * Gets a warehouse by its position.
+     */
+    public WarehouseData getWarehouse(Vector3i position) {
+        if (warehouses == null) return null;
+        return warehouses.stream()
+                .filter(w -> w.isAtPosition(position))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Checks if a warehouse exists at the given position.
+     */
+    public boolean hasWarehouseAt(Vector3i position) {
+        if (warehouses == null) return false;
+        return warehouses.stream()
+                .anyMatch(w -> w.isAtPosition(position));
     }
 }
