@@ -361,10 +361,16 @@ public class ColonyService {
             npcSkin = colony.getFaction().getRandomSkin();
         }
 
+        String skinCosmetics = null;
+        if ("Avatar_Citizen".equals(npcSkin) || (colony.getFaction() != null && "Avatar".equalsIgnoreCase(colony.getFaction().getDisplayName()))) {
+            skinCosmetics = SkinGenerator.generateRandomSkin();
+        }
+
         CitizenData citizen = new CitizenData(
                 UUID.randomUUID(),
                 name,
                 npcSkin,
+                skinCosmetics,
                 x, y, z
         );
 
