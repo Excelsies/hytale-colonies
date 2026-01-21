@@ -260,7 +260,7 @@ public class HyColoniesPlugin extends JavaPlugin {
 
         // Phase 2: /warehouse command - manage warehouses
         getCommandRegistry().registerCommand(
-                new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService)
+                new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler)
         );
 
         // Phase 2: /logistics command - debug logistics system
@@ -327,5 +327,12 @@ public class HyColoniesPlugin extends JavaPlugin {
      */
     public LogisticsService getLogisticsService() {
         return logisticsService;
+    }
+
+    /**
+     * Gets the inventory change handler.
+     */
+    public InventoryChangeHandler getInventoryChangeHandler() {
+        return inventoryChangeHandler;
     }
 }

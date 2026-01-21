@@ -2,6 +2,7 @@ package com.excelsies.hycolonies.command;
 
 import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.service.ColonyService;
+import com.excelsies.hycolonies.logistics.event.InventoryChangeHandler;
 import com.excelsies.hycolonies.logistics.service.InventoryCacheService;
 import com.excelsies.hycolonies.warehouse.WarehouseData;
 import com.excelsies.hycolonies.warehouse.WarehouseRegistry;
@@ -40,13 +41,13 @@ public class WarehouseCommand extends CommandBase {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
     public WarehouseCommand(ColonyService colonyService, WarehouseRegistry warehouseRegistry,
-                            InventoryCacheService inventoryCache) {
+                            InventoryCacheService inventoryCache, InventoryChangeHandler changeHandler) {
         super("warehouse", "Manage colony warehouses");
         this.setPermissionGroup(GameMode.Adventure);
 
-        addSubCommand(new RegisterSubCommand(colonyService, warehouseRegistry, inventoryCache));
+        addSubCommand(new RegisterSubCommand(colonyService, warehouseRegistry, inventoryCache, changeHandler));
         addSubCommand(new ListSubCommand(colonyService));
-        addSubCommand(new UnregisterSubCommand(colonyService, warehouseRegistry, inventoryCache));
+        addSubCommand(new UnregisterSubCommand(colonyService, warehouseRegistry, inventoryCache, changeHandler));
         addSubCommand(new StockSubCommand(colonyService, inventoryCache));
     }
 
@@ -113,14 +114,16 @@ public class WarehouseCommand extends CommandBase {
         private final ColonyService colonyService;
         private final WarehouseRegistry warehouseRegistry;
         private final InventoryCacheService inventoryCache;
+        private final InventoryChangeHandler changeHandler;
         private final RequiredArg<String> colonyIdArg;
 
         public RegisterSubCommand(ColonyService colonyService, WarehouseRegistry warehouseRegistry,
-                                  InventoryCacheService inventoryCache) {
+                                  InventoryCacheService inventoryCache, InventoryChangeHandler changeHandler) {
             super("register", "Register a warehouse for a colony");
             this.colonyService = colonyService;
             this.warehouseRegistry = warehouseRegistry;
             this.inventoryCache = inventoryCache;
+            this.changeHandler = changeHandler;
             this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
         }
 
@@ -174,6 +177,9 @@ public class WarehouseCommand extends CommandBase {
                 // Update registry and cache
                 warehouseRegistry.registerWarehouse(colonyId, targetPos);
                 inventoryCache.registerWarehouse(colonyId, targetPos);
+
+                // Register event listener for this container (event-driven cache updates)
+                changeHandler.registerContainerListener(colonyId, targetPos, world);
 
                 ctx.sendMessage(Message.raw("Registered warehouse at (" +
                         targetPos.getX() + ", " + targetPos.getY() + ", " + targetPos.getZ() + ")"));
@@ -233,14 +239,16 @@ public class WarehouseCommand extends CommandBase {
         private final ColonyService colonyService;
         private final WarehouseRegistry warehouseRegistry;
         private final InventoryCacheService inventoryCache;
+        private final InventoryChangeHandler changeHandler;
         private final RequiredArg<String> colonyIdArg;
 
         public UnregisterSubCommand(ColonyService colonyService, WarehouseRegistry warehouseRegistry,
-                                    InventoryCacheService inventoryCache) {
+                                    InventoryCacheService inventoryCache, InventoryChangeHandler changeHandler) {
             super("unregister", "Remove a warehouse from a colony");
             this.colonyService = colonyService;
             this.warehouseRegistry = warehouseRegistry;
             this.inventoryCache = inventoryCache;
+            this.changeHandler = changeHandler;
             this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
         }
 
@@ -284,6 +292,9 @@ public class WarehouseCommand extends CommandBase {
                     ctx.sendMessage(Message.raw("No warehouse registered at this position."));
                     return;
                 }
+
+                // Unregister the event listener first
+                changeHandler.unregisterContainerListener(targetPos);
 
                 // Unregister the warehouse
                 colony.removeWarehouse(targetPos);
