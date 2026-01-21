@@ -4,6 +4,9 @@ import com.excelsies.hycolonies.colony.model.CitizenData;
 import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.service.ColonyService;
 import com.excelsies.hycolonies.ecs.component.CitizenComponent;
+import com.excelsies.hycolonies.ecs.component.JobComponent;
+import com.excelsies.hycolonies.ecs.component.JobType;
+import com.excelsies.hycolonies.ecs.tag.IdleTag;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -49,6 +52,7 @@ public class CitizenCommand extends CommandBase {
         addSubCommand(new ListSubCommand(colonyService));
         addSubCommand(new SpawnSubCommand(colonyService));
         addSubCommand(new RemoveSubCommand(colonyService));
+        addSubCommand(new JobSubCommand(colonyService));
     }
 
     @Override
@@ -58,8 +62,10 @@ public class CitizenCommand extends CommandBase {
         ctx.sendMessage(Message.raw("  /citizen list [colony] - List citizens"));
         ctx.sendMessage(Message.raw("  /citizen spawn [colony] [citizen] [skin] - Spawn existing citizen"));
         ctx.sendMessage(Message.raw("  /citizen remove [colony] [citizen] - Remove a citizen"));
+        ctx.sendMessage(Message.raw("  /citizen job [colony] [citizen] [job] - Assign a job to a citizen"));
         ctx.sendMessage(Message.raw("Note: Colony and citizen can be specified by name or UUID."));
         ctx.sendMessage(Message.raw("      Skin is optional; uses random faction skin if not specified."));
+        ctx.sendMessage(Message.raw("      Jobs: unemployed, courier, builder, farmer, miner, guard"));
     }
 
     /**
@@ -109,13 +115,15 @@ public class CitizenCommand extends CommandBase {
      * Spawns a citizen NPC on the world thread.
      * Must be called from within world.execute().
      *
-     * @param store    The entity store
-     * @param colonyId The colony UUID
-     * @param citizen  The citizen data
-     * @param npcSkin  The specific NPC skin to spawn
+     * @param store         The entity store
+     * @param colonyService The colony service for entity registration
+     * @param colonyId      The colony UUID
+     * @param citizen       The citizen data
+     * @param npcSkin       The specific NPC skin to spawn
      * @return true if spawn was successful
      */
-    private static boolean spawnCitizenNPC(Store<EntityStore> store, UUID colonyId, CitizenData citizen, String npcSkin) {
+    private static boolean spawnCitizenNPC(Store<EntityStore> store, ColonyService colonyService,
+                                            UUID colonyId, CitizenData citizen, String npcSkin) {
         NPCPlugin npcPlugin = NPCPlugin.get();
         if (npcPlugin == null) {
             LOGGER.atWarning().log("NPCPlugin not available");
@@ -148,6 +156,9 @@ public class CitizenCommand extends CommandBase {
                         );
                         store.addComponent(entityRef, CitizenComponent.getComponentType(), citizenComponent);
                     }
+
+                    // Register the entity reference with ColonyService for later lookup
+                    colonyService.registerCitizenEntity(citizen.getCitizenId(), entityRef);
 
                     LOGGER.atInfo().log("Spawned citizen '%s' as %s at (%.0f, %.0f, %.0f)",
                             citizen.getName(), npcSkin,
@@ -256,7 +267,7 @@ public class CitizenCommand extends CommandBase {
                     CitizenData citizen = colonyService.addCitizen(colonyId, citizenName, x, y, z, finalNpcSkin, false);
 
                     if (citizen != null) {
-                        boolean spawned = spawnCitizenNPC(store, colonyId, citizen, finalNpcSkin);
+                        boolean spawned = spawnCitizenNPC(store, colonyService, colonyId, citizen, finalNpcSkin);
 
                         if (spawned) {
                             ctx.sendMessage(Message.raw("Spawned citizen '" + citizenName + "' (" + finalNpcSkin + ") in " + colony.getName() + "!"));
@@ -409,7 +420,7 @@ public class CitizenCommand extends CommandBase {
 
                     citizen.updateLastPosition(x, y, z);
 
-                    boolean spawned = spawnCitizenNPC(store, colonyId, citizen, finalNpcSkin);
+                    boolean spawned = spawnCitizenNPC(store, colonyService, colonyId, citizen, finalNpcSkin);
 
                     if (spawned) {
                         ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' (" + finalNpcSkin + ") at " +
@@ -464,6 +475,140 @@ public class CitizenCommand extends CommandBase {
             } else {
                 ctx.sendMessage(Message.raw("Citizen not found in colony."));
             }
+        }
+    }
+
+    // =====================
+    // Subcommand: job
+    // =====================
+    private static class JobSubCommand extends CommandBase {
+        private final ColonyService colonyService;
+        private final RequiredArg<String> colonyIdArg;
+        private final RequiredArg<String> citizenIdArg;
+        private final RequiredArg<String> jobTypeArg;
+
+        public JobSubCommand(ColonyService colonyService) {
+            super("job", "Assign a job to a citizen");
+            this.colonyService = colonyService;
+            this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
+            this.citizenIdArg = withRequiredArg("citizen", "Citizen name or UUID", ArgTypes.STRING);
+            this.jobTypeArg = withRequiredArg("job", "Job type (courier, builder, farmer, miner, guard, unemployed)", ArgTypes.STRING);
+        }
+
+        @Override
+        protected void executeSync(@Nonnull CommandContext ctx) {
+            String colonyIdentifier = ctx.get(colonyIdArg);
+            String citizenIdentifier = ctx.get(citizenIdArg);
+            String jobTypeStr = ctx.get(jobTypeArg);
+
+            ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
+            if (colony == null) {
+                return;
+            }
+
+            CitizenData citizen = resolveCitizenWithFeedback(colonyService, ctx, colony, citizenIdentifier);
+            if (citizen == null) {
+                return;
+            }
+
+            // Parse job type
+            JobType jobType;
+            try {
+                jobType = JobType.valueOf(jobTypeStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                ctx.sendMessage(Message.raw("Unknown job type: " + jobTypeStr));
+                ctx.sendMessage(Message.raw("Available jobs: " + String.join(", ",
+                        java.util.Arrays.stream(JobType.values())
+                                .map(j -> j.name().toLowerCase())
+                                .toArray(String[]::new))));
+                return;
+            }
+
+            if (!ctx.isPlayer()) {
+                ctx.sendMessage(Message.raw("This command must be run by a player."));
+                return;
+            }
+
+            Player player = ctx.senderAs(Player.class);
+            if (player == null || player.getWorld() == null) {
+                ctx.sendMessage(Message.raw("Could not get player world."));
+                return;
+            }
+
+            World world = player.getWorld();
+            UUID colonyId = colony.getColonyId();
+            UUID citizenId = citizen.getCitizenId();
+
+            // Find and update the citizen's entity on the world thread
+            world.execute(() -> {
+                Store<EntityStore> store = world.getEntityStore().getStore();
+
+                // Find the entity with matching CitizenComponent
+                boolean found = findAndUpdateCitizenJob(store, colonyId, citizenId, jobType);
+
+                if (found) {
+                    ctx.sendMessage(Message.raw("Assigned " + citizen.getName() + " as " + jobType.getDisplayName() + "."));
+                } else {
+                    ctx.sendMessage(Message.raw("Citizen entity not found in world. Spawn the citizen first."));
+                }
+            });
+        }
+
+        /**
+         * Finds the citizen entity and updates their job component.
+         * Must be called on the world thread.
+         */
+        private boolean findAndUpdateCitizenJob(Store<EntityStore> store, UUID colonyId, UUID citizenId, JobType jobType) {
+            if (CitizenComponent.getComponentType() == null || JobComponent.getComponentType() == null) {
+                LOGGER.atWarning().log("CitizenComponent or JobComponent not registered");
+                return false;
+            }
+
+            // Get the entity reference from ColonyService tracking
+            Ref<EntityStore> entityRef = colonyService.getCitizenEntity(citizenId);
+            if (entityRef == null) {
+                LOGGER.atFine().log("No tracked entity for citizen %s", citizenId);
+                return false;
+            }
+
+            // Verify the entity still exists and has a CitizenComponent
+            CitizenComponent citizenComp = store.getComponent(entityRef, CitizenComponent.getComponentType());
+            if (citizenComp == null) {
+                LOGGER.atFine().log("Entity ref exists but CitizenComponent not found for %s", citizenId);
+                // Entity may have been despawned, clean up tracking
+                colonyService.unregisterCitizenEntity(citizenId);
+                return false;
+            }
+
+            // Create or update JobComponent
+            JobComponent existingJob = store.getComponent(entityRef, JobComponent.getComponentType());
+            JobComponent newJob;
+
+            if (existingJob != null) {
+                // Update existing job
+                newJob = new JobComponent(
+                        jobType,
+                        existingJob.getCurrentState(),
+                        existingJob.getAssignedTaskId(),
+                        existingJob.getExperiencePoints()
+                );
+            } else {
+                // Create new job component
+                newJob = new JobComponent(jobType, "IDLE", null, 0);
+            }
+
+            store.addComponent(entityRef, JobComponent.getComponentType(), newJob);
+
+            // Add IdleTag for couriers so they can receive tasks
+            if (jobType == JobType.COURIER && IdleTag.getComponentType() != null) {
+                IdleTag idleTag = store.getComponent(entityRef, IdleTag.getComponentType());
+                if (idleTag == null) {
+                    store.addComponent(entityRef, IdleTag.getComponentType(), new IdleTag());
+                }
+            }
+
+            LOGGER.atInfo().log("Assigned job %s to citizen %s", jobType.name(), citizenId.toString().substring(0, 8));
+            return true;
         }
     }
 }
