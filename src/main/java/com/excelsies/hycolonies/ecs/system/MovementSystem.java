@@ -1,6 +1,5 @@
 package com.excelsies.hycolonies.ecs.system;
 
-import com.excelsies.hycolonies.ecs.component.CitizenComponent;
 import com.excelsies.hycolonies.ecs.component.PathingComponent;
 import com.excelsies.hycolonies.ecs.component.PathingStatus;
 import com.hypixel.hytale.component.*;
@@ -10,18 +9,36 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nonnull;
 
 /**
- * ECS System that handles NPC movement along paths.
+ * ECS System that handles directed NPC movement for colony tasks.
  *
- * This system processes entities with PathingComponent and TransformComponent,
- * moving them toward their target positions at a configurable speed.
+ * This system processes entities with PathingComponent and moves them toward
+ * their target positions using the Teleport component for reliable position updates.
  *
- * When the Hytale pathfinding API becomes available, this system will integrate
- * with the NavMesh for proper obstacle avoidance. Currently uses direct movement.
+ * <h2>Movement Architecture</h2>
+ * <ul>
+ *   <li><b>Idle Wandering:</b> Handled by NPC role templates (BodyMotion wander instructions)</li>
+ *   <li><b>Directed Movement:</b> Handled by this system via PathingComponent + Teleport</li>
+ * </ul>
+ *
+ * <h2>How It Works</h2>
+ * <ol>
+ *   <li>Other systems (CourierJobSystem, etc.) set PathingComponent with a target position</li>
+ *   <li>This system detects entities with COMPUTING/MOVING status</li>
+ *   <li>Uses Teleport component for incremental position updates (avoids client-server desync)</li>
+ *   <li>Marks status as ARRIVED when within threshold of target</li>
+ * </ol>
+ *
+ * <h2>Note on NPC Pathfinding</h2>
+ * NPCs spawned via NPCPlugin have built-in A* pathfinding through their role system.
+ * For complex navigation with obstacle avoidance, consider using NPCMessage or
+ * BodyMotionFind instructions. This system provides simple direct movement for
+ * short distances and job-related tasks.
  */
 public class MovementSystem extends EntityTickingSystem<EntityStore> {
 
@@ -130,6 +147,7 @@ public class MovementSystem extends EntityTickingSystem<EntityStore> {
 
     /**
      * Handles MOVING status - actively moving toward target.
+     * Uses Teleport component for reliable position updates (avoids client-server desync).
      */
     private void handleMoving(Ref<EntityStore> ref, PathingComponent pathing,
                               TransformComponent transform, float deltaTime,
@@ -178,14 +196,21 @@ public class MovementSystem extends EntityTickingSystem<EntityStore> {
         // Calculate rotation to face movement direction
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
 
-        // Create new transform with updated position and rotation
+        // Create new position and rotation
         Vector3d newPos = new Vector3d(newX, newY, newZ);
         Vector3f currentRot = transform.getRotation();
         Vector3f newRot = new Vector3f(currentRot.getX(), yaw, currentRot.getZ());
 
-        // Update transform
-        TransformComponent newTransform = new TransformComponent(newPos, newRot);
-        commandBuffer.addComponent(ref, TransformComponent.getComponentType(), newTransform);
+        // Use Teleport component for reliable position updates
+        // This avoids client-server desync that occurs with direct TransformComponent modification
+        if (Teleport.getComponentType() != null) {
+            Teleport teleport = new Teleport(newPos, newRot);
+            commandBuffer.addComponent(ref, Teleport.getComponentType(), teleport);
+        } else {
+            // Fallback to direct transform update if Teleport not available
+            TransformComponent newTransform = new TransformComponent(newPos, newRot);
+            commandBuffer.addComponent(ref, TransformComponent.getComponentType(), newTransform);
+        }
 
         // Update move time to indicate progress
         pathing.updateMoveTime();

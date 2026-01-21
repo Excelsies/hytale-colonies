@@ -13,7 +13,6 @@ import com.excelsies.hycolonies.ecs.component.PathingComponent;
 import com.excelsies.hycolonies.ecs.system.CourierJobSystem;
 import com.excelsies.hycolonies.ecs.system.LogisticsTickSystem;
 import com.excelsies.hycolonies.ecs.system.MovementSystem;
-import com.excelsies.hycolonies.ecs.system.WanderSystem;
 import com.excelsies.hycolonies.logistics.event.InventoryChangeHandler;
 import com.excelsies.hycolonies.ecs.tag.CourierActiveTag;
 import com.excelsies.hycolonies.ecs.tag.IdleTag;
@@ -42,7 +41,7 @@ import java.nio.file.Paths;
  * - Citizen data management
  * - Commands for colony creation and citizen management
  * - ECS CitizenComponent for marking entities as citizens
- * - WanderSystem for basic citizen behavior
+ * - NPC role templates for citizen wander/idle behavior
  *
  * Phase 2 implements:
  * - Logistics system with async solver
@@ -107,7 +106,7 @@ public class HyColoniesPlugin extends JavaPlugin {
         Runtime.getRuntime().addShutdownHook(new Thread(this::onShutdown));
 
         LOGGER.atInfo().log("HyColonies setup complete!");
-        LOGGER.atInfo().log("  - Registered 6 ECS components and 4 systems");
+        LOGGER.atInfo().log("  - Registered 6 ECS components and 3 systems");
         LOGGER.atInfo().log("  - Registered 4 commands (/colony, /citizen, /warehouse, /logistics)");
         LOGGER.atInfo().log("  - Loaded " + colonyService.getColonyCount() + " colonies from disk");
         LOGGER.atInfo().log("  - Logistics system initialized with inventory scanning");
@@ -186,11 +185,8 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerECSSystems() {
         LOGGER.atInfo().log("Registering ECS systems...");
 
-        // Phase 1: WanderSystem
-        getEntityStoreRegistry().registerSystem(new WanderSystem());
-        LOGGER.atInfo().log("  - Registered WanderSystem");
-
-        // Phase 2: MovementSystem (processes PathingComponent)
+        // Phase 2: MovementSystem (processes PathingComponent for directed movement)
+        // Note: Idle wandering is handled by NPC role templates, not by an ECS system
         getEntityStoreRegistry().registerSystem(new MovementSystem());
         LOGGER.atInfo().log("  - Registered MovementSystem");
 
