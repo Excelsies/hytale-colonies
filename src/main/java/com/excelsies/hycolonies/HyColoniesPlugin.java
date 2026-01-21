@@ -4,8 +4,22 @@ import com.excelsies.hycolonies.colony.service.ColonyService;
 import com.excelsies.hycolonies.colony.storage.ColonyStorage;
 import com.excelsies.hycolonies.command.CitizenCommand;
 import com.excelsies.hycolonies.command.ColonyCommand;
+import com.excelsies.hycolonies.command.LogisticsCommand;
+import com.excelsies.hycolonies.command.WarehouseCommand;
 import com.excelsies.hycolonies.ecs.component.CitizenComponent;
+import com.excelsies.hycolonies.ecs.component.InventoryComponent;
+import com.excelsies.hycolonies.ecs.component.JobComponent;
+import com.excelsies.hycolonies.ecs.component.PathingComponent;
+import com.excelsies.hycolonies.ecs.system.CourierJobSystem;
+import com.excelsies.hycolonies.ecs.system.LogisticsTickSystem;
+import com.excelsies.hycolonies.ecs.system.MovementSystem;
 import com.excelsies.hycolonies.ecs.system.WanderSystem;
+import com.excelsies.hycolonies.logistics.event.InventoryChangeHandler;
+import com.excelsies.hycolonies.ecs.tag.CourierActiveTag;
+import com.excelsies.hycolonies.ecs.tag.IdleTag;
+import com.excelsies.hycolonies.logistics.service.InventoryCacheService;
+import com.excelsies.hycolonies.logistics.service.LogisticsService;
+import com.excelsies.hycolonies.warehouse.WarehouseRegistry;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
@@ -29,6 +43,12 @@ import java.nio.file.Paths;
  * - Commands for colony creation and citizen management
  * - ECS CitizenComponent for marking entities as citizens
  * - WanderSystem for basic citizen behavior
+ *
+ * Phase 2 implements:
+ * - Logistics system with async solver
+ * - Warehouse management and inventory caching
+ * - JobComponent, PathingComponent, InventoryComponent
+ * - Courier job state machine
  */
 public class HyColoniesPlugin extends JavaPlugin {
 
@@ -37,9 +57,15 @@ public class HyColoniesPlugin extends JavaPlugin {
     // Singleton instance
     private static HyColoniesPlugin instance;
 
-    // Services
+    // Phase 1 Services
     private ColonyStorage colonyStorage;
     private ColonyService colonyService;
+
+    // Phase 2 Services
+    private WarehouseRegistry warehouseRegistry;
+    private InventoryCacheService inventoryCacheService;
+    private LogisticsService logisticsService;
+    private InventoryChangeHandler inventoryChangeHandler;
 
     /**
      * Plugin constructor - called when the plugin is loaded.
@@ -81,9 +107,10 @@ public class HyColoniesPlugin extends JavaPlugin {
         Runtime.getRuntime().addShutdownHook(new Thread(this::onShutdown));
 
         LOGGER.atInfo().log("HyColonies setup complete!");
-        LOGGER.atInfo().log("  - Registered CitizenComponent and WanderSystem");
-        LOGGER.atInfo().log("  - Registered 2 commands (/colony, /citizen)");
+        LOGGER.atInfo().log("  - Registered 6 ECS components and 4 systems");
+        LOGGER.atInfo().log("  - Registered 4 commands (/colony, /citizen, /warehouse, /logistics)");
         LOGGER.atInfo().log("  - Loaded " + colonyService.getColonyCount() + " colonies from disk");
+        LOGGER.atInfo().log("  - Logistics system initialized with inventory scanning");
     }
 
     /**
@@ -92,7 +119,7 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerECSComponents() {
         LOGGER.atInfo().log("Registering ECS components...");
 
-        // Register CitizenComponent
+        // Phase 1: CitizenComponent
         ComponentType<EntityStore, CitizenComponent> citizenComponentType =
                 getEntityStoreRegistry().registerComponent(
                         CitizenComponent.class,
@@ -100,8 +127,57 @@ public class HyColoniesPlugin extends JavaPlugin {
                         CitizenComponent.CODEC
                 );
         CitizenComponent.setComponentType(citizenComponentType);
-
         LOGGER.atInfo().log("  - Registered CitizenComponent");
+
+        // Phase 2: JobComponent
+        ComponentType<EntityStore, JobComponent> jobComponentType =
+                getEntityStoreRegistry().registerComponent(
+                        JobComponent.class,
+                        "HyColonies:JobComponent",
+                        JobComponent.CODEC
+                );
+        JobComponent.setComponentType(jobComponentType);
+        LOGGER.atInfo().log("  - Registered JobComponent");
+
+        // Phase 2: PathingComponent
+        ComponentType<EntityStore, PathingComponent> pathingComponentType =
+                getEntityStoreRegistry().registerComponent(
+                        PathingComponent.class,
+                        "HyColonies:PathingComponent",
+                        PathingComponent.CODEC
+                );
+        PathingComponent.setComponentType(pathingComponentType);
+        LOGGER.atInfo().log("  - Registered PathingComponent");
+
+        // Phase 2: InventoryComponent
+        ComponentType<EntityStore, InventoryComponent> inventoryComponentType =
+                getEntityStoreRegistry().registerComponent(
+                        InventoryComponent.class,
+                        "HyColonies:InventoryComponent",
+                        InventoryComponent.CODEC
+                );
+        InventoryComponent.setComponentType(inventoryComponentType);
+        LOGGER.atInfo().log("  - Registered InventoryComponent");
+
+        // Phase 2: IdleTag (marker component)
+        ComponentType<EntityStore, IdleTag> idleTagType =
+                getEntityStoreRegistry().registerComponent(
+                        IdleTag.class,
+                        "HyColonies:IdleTag",
+                        IdleTag.CODEC
+                );
+        IdleTag.setComponentType(idleTagType);
+        LOGGER.atInfo().log("  - Registered IdleTag");
+
+        // Phase 2: CourierActiveTag (marker component)
+        ComponentType<EntityStore, CourierActiveTag> courierActiveTagType =
+                getEntityStoreRegistry().registerComponent(
+                        CourierActiveTag.class,
+                        "HyColonies:CourierActiveTag",
+                        CourierActiveTag.CODEC
+                );
+        CourierActiveTag.setComponentType(courierActiveTagType);
+        LOGGER.atInfo().log("  - Registered CourierActiveTag");
     }
 
     /**
@@ -110,10 +186,15 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerECSSystems() {
         LOGGER.atInfo().log("Registering ECS systems...");
 
-        // Register WanderSystem
+        // Phase 1: WanderSystem
         getEntityStoreRegistry().registerSystem(new WanderSystem());
-
         LOGGER.atInfo().log("  - Registered WanderSystem");
+
+        // Phase 2: MovementSystem (processes PathingComponent)
+        getEntityStoreRegistry().registerSystem(new MovementSystem());
+        LOGGER.atInfo().log("  - Registered MovementSystem");
+
+        // Note: LogisticsTickSystem and CourierJobSystem are registered after services are initialized
     }
 
     /**
@@ -125,12 +206,44 @@ public class HyColoniesPlugin extends JavaPlugin {
         // Get server run directory
         Path serverDirectory = Paths.get("").toAbsolutePath();
 
-        // Initialize storage
+        // Phase 1: Initialize storage and colony service
         colonyStorage = new ColonyStorage(serverDirectory);
-
-        // Initialize and load colony service
         colonyService = new ColonyService(colonyStorage);
         colonyService.initialize();
+
+        // Phase 2: Initialize logistics services
+        warehouseRegistry = new WarehouseRegistry();
+        inventoryCacheService = new InventoryCacheService();
+        logisticsService = new LogisticsService(inventoryCacheService, colonyService);
+
+        // Register LogisticsTickSystem now that services are ready
+        getEntityStoreRegistry().registerSystem(new LogisticsTickSystem(logisticsService));
+        LOGGER.atInfo().log("  - Registered LogisticsTickSystem");
+
+        // Register CourierJobSystem now that logisticsService is ready
+        getEntityStoreRegistry().registerSystem(new CourierJobSystem(logisticsService));
+        LOGGER.atInfo().log("  - Registered CourierJobSystem");
+
+        // Initialize and start InventoryChangeHandler
+        inventoryChangeHandler = new InventoryChangeHandler(inventoryCacheService, warehouseRegistry, colonyService);
+        inventoryChangeHandler.start(HytaleServer.SCHEDULED_EXECUTOR);
+        LOGGER.atInfo().log("  - Started InventoryChangeHandler");
+
+        // Load existing warehouses into registry and cache
+        loadWarehousesFromColonies();
+    }
+
+    /**
+     * Loads existing warehouses from all colonies into the registry and cache.
+     */
+    private void loadWarehousesFromColonies() {
+        for (var colony : colonyService.getAllColonies()) {
+            for (var warehouse : colony.getWarehouses()) {
+                warehouseRegistry.registerWarehouse(colony.getColonyId(), warehouse.getPosition());
+                inventoryCacheService.registerWarehouse(colony.getColonyId(), warehouse.getPosition());
+            }
+        }
+        LOGGER.atInfo().log("Loaded %d warehouses into registry", warehouseRegistry.getTotalWarehouseCount());
     }
 
     /**
@@ -139,14 +252,24 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerCommands() {
         LOGGER.atInfo().log("Registering commands...");
 
-        // /colony command - create and manage colonies
+        // Phase 1: /colony command - create and manage colonies
         getCommandRegistry().registerCommand(
                 new ColonyCommand(colonyService)
         );
 
-        // /citizen command - manage citizens
+        // Phase 1: /citizen command - manage citizens
         getCommandRegistry().registerCommand(
                 new CitizenCommand(colonyService)
+        );
+
+        // Phase 2: /warehouse command - manage warehouses
+        getCommandRegistry().registerCommand(
+                new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService)
+        );
+
+        // Phase 2: /logistics command - debug logistics system
+        getCommandRegistry().registerCommand(
+                new LogisticsCommand(logisticsService, inventoryCacheService, colonyService)
         );
     }
 
@@ -163,6 +286,16 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void onShutdown() {
         LOGGER.atInfo().log("HyColonies shutting down...");
 
+        // Shutdown Phase 2 services first
+        if (inventoryChangeHandler != null) {
+            inventoryChangeHandler.stop();
+        }
+
+        if (logisticsService != null) {
+            logisticsService.shutdown();
+        }
+
+        // Shutdown Phase 1 services
         if (colonyService != null) {
             colonyService.shutdown();
         }
@@ -170,10 +303,33 @@ public class HyColoniesPlugin extends JavaPlugin {
         LOGGER.atInfo().log("HyColonies shutdown complete. Goodbye!");
     }
 
+    // === Getters for services ===
+
     /**
      * Gets the colony service.
      */
     public ColonyService getColonyService() {
         return colonyService;
+    }
+
+    /**
+     * Gets the warehouse registry.
+     */
+    public WarehouseRegistry getWarehouseRegistry() {
+        return warehouseRegistry;
+    }
+
+    /**
+     * Gets the inventory cache service.
+     */
+    public InventoryCacheService getInventoryCacheService() {
+        return inventoryCacheService;
+    }
+
+    /**
+     * Gets the logistics service.
+     */
+    public LogisticsService getLogisticsService() {
+        return logisticsService;
     }
 }
