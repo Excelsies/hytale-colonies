@@ -65,7 +65,7 @@ public class LogisticsTickSystem extends EntityTickingSystem<EntityStore> {
 
                 // Trigger the logistics cycle
                 if (logisticsService != null) {
-                    logisticsService.triggerLogisticsCycle(store);
+                    logisticsService.triggerLogisticsCycle(store, commandBuffer);
                 }
             }
         }

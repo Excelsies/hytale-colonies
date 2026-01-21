@@ -5,8 +5,10 @@ import com.excelsies.hycolonies.colony.service.ColonyService;
 import com.excelsies.hycolonies.ecs.component.CitizenComponent;
 import com.excelsies.hycolonies.ecs.component.JobComponent;
 import com.excelsies.hycolonies.ecs.component.JobType;
+import com.excelsies.hycolonies.ecs.tag.CourierActiveTag;
 import com.excelsies.hycolonies.ecs.tag.IdleTag;
 import com.excelsies.hycolonies.logistics.model.*;
+import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -74,10 +76,11 @@ public class LogisticsService {
      * Called by LogisticsTickSystem on the main thread.
      *
      * @param store The entity store for querying courier positions
+     * @param commandBuffer The command buffer for deferred component modifications
      */
-    public void triggerLogisticsCycle(Store<EntityStore> store) {
+    public void triggerLogisticsCycle(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer) {
         // Phase 3: Execute pending instructions from previous cycle
-        executePhaseThree(store);
+        executePhaseThree(store, commandBuffer);
 
         // Don't start new solve if one is in progress
         if (!solveInProgress.compareAndSet(false, true)) {
@@ -199,17 +202,18 @@ public class LogisticsService {
     /**
      * Phase 3: Validates and executes pending instructions.
      */
-    private void executePhaseThree(Store<EntityStore> store) {
+    private void executePhaseThree(Store<EntityStore> store, CommandBuffer<EntityStore> commandBuffer) {
         TransportInstruction instruction;
         while ((instruction = pendingInstructions.poll()) != null) {
-            validateAndExecute(instruction, store);
+            validateAndExecute(instruction, store, commandBuffer);
         }
     }
 
     /**
      * Validates an instruction against current world state and assigns to courier.
      */
-    private void validateAndExecute(TransportInstruction instruction, Store<EntityStore> store) {
+    private void validateAndExecute(TransportInstruction instruction, Store<EntityStore> store,
+                                     CommandBuffer<EntityStore> commandBuffer) {
         // 1. Verify source still has the items
         List<ItemEntry> sourceContents = inventoryCache.getWarehouseContents(
                 instruction.source().colonyId(),
@@ -227,12 +231,59 @@ public class LogisticsService {
             return;
         }
 
-        // 2. The courier assignment would happen here
-        // For now, we track the instruction as active
+        // 2. Get the courier entity and verify they're still available
+        UUID courierId = instruction.courierId();
+        if (courierId == null) {
+            LOGGER.atWarning().log("Instruction has no assigned courier, skipping");
+            return;
+        }
+
+        Ref<EntityStore> courierRef = colonyService.getCitizenEntity(courierId);
+        if (courierRef == null) {
+            LOGGER.atInfo().log("Courier %s not spawned, instruction invalidated", courierId);
+            return;
+        }
+
+        // 3. Verify courier is still idle
+        if (IdleTag.getComponentType() == null || JobComponent.getComponentType() == null) {
+            LOGGER.atWarning().log("ECS component types not registered, skipping courier assignment");
+            return;
+        }
+
+        IdleTag idleTag = store.getComponent(courierRef, IdleTag.getComponentType());
+        if (idleTag == null) {
+            LOGGER.atInfo().log("Courier %s no longer idle, instruction invalidated", courierId);
+            return;
+        }
+
+        JobComponent job = store.getComponent(courierRef, JobComponent.getComponentType());
+        if (job == null || job.getJobType() != JobType.COURIER) {
+            LOGGER.atInfo().log("Entity %s is not a courier, instruction invalidated", courierId);
+            return;
+        }
+
+        // 4. Assign the instruction to the courier
+        // Create updated JobComponent with the task assignment
+        JobComponent updatedJob = new JobComponent(
+                job.getJobType(),
+                CourierState.IDLE.name(),  // Will transition to MOVING_TO_SOURCE in CourierJobSystem
+                instruction.instructionId(),
+                job.getExperiencePoints()
+        );
+        commandBuffer.addComponent(courierRef, JobComponent.getComponentType(), updatedJob);
+
+        // 5. Update tags: remove IdleTag, add CourierActiveTag
+        commandBuffer.removeComponent(courierRef, IdleTag.getComponentType());
+        if (CourierActiveTag.getComponentType() != null) {
+            commandBuffer.addComponent(courierRef, CourierActiveTag.getComponentType(), new CourierActiveTag());
+        }
+
+        // 6. Track the instruction as active
         activeInstructions.put(instruction.instructionId(), instruction);
 
-        LOGGER.atInfo().log("Instruction activated: transport %s x%d to %s",
-                instruction.itemId(), instruction.quantity(), instruction.destination().position());
+        LOGGER.atInfo().log("Courier %s assigned to transport %s x%d from %s to %s",
+                courierId, instruction.itemId(), instruction.quantity(),
+                instruction.source().position(), instruction.destination().position());
     }
 
     // === Public API for creating requests ===
