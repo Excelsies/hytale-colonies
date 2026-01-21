@@ -72,7 +72,10 @@ public class CitizenCommand extends CommandBase {
         ctx.sendMessage(Message.raw("  /citizen job [colony] [citizen] [job] - Assign a job to a citizen"));
         ctx.sendMessage(Message.raw("Note: Colony and citizen can be specified by name or UUID."));
         ctx.sendMessage(Message.raw("      Skin is optional; uses random faction skin if not specified."));
-        ctx.sendMessage(Message.raw("      Jobs: unemployed, courier, builder, farmer, miner, guard"));
+        ctx.sendMessage(Message.raw("      Jobs: " + String.join(", ",
+                java.util.Arrays.stream(JobType.values())
+                        .map(j -> j.name().toLowerCase())
+                        .toArray(String[]::new))));
     }
 
     /**
