@@ -116,13 +116,14 @@ public class CitizenCommand extends CommandBase {
      * Must be called from within world.execute().
      *
      * @param store         The entity store
+     * @param world         The world to spawn in (for entity tracking)
      * @param colonyService The colony service for entity registration
      * @param colonyId      The colony UUID
      * @param citizen       The citizen data
      * @param npcSkin       The specific NPC skin to spawn
      * @return true if spawn was successful
      */
-    private static boolean spawnCitizenNPC(Store<EntityStore> store, ColonyService colonyService,
+    private static boolean spawnCitizenNPC(Store<EntityStore> store, World world, ColonyService colonyService,
                                             UUID colonyId, CitizenData citizen, String npcSkin) {
         NPCPlugin npcPlugin = NPCPlugin.get();
         if (npcPlugin == null) {
@@ -157,8 +158,8 @@ public class CitizenCommand extends CommandBase {
                         store.addComponent(entityRef, CitizenComponent.getComponentType(), citizenComponent);
                     }
 
-                    // Register the entity reference with ColonyService for later lookup
-                    colonyService.registerCitizenEntity(citizen.getCitizenId(), entityRef);
+                    // Register the entity reference with ColonyService for later lookup and cleanup
+                    colonyService.registerCitizenEntity(citizen.getCitizenId(), entityRef, world);
 
                     LOGGER.atInfo().log("Spawned citizen '%s' as %s at (%.0f, %.0f, %.0f)",
                             citizen.getName(), npcSkin,
@@ -267,7 +268,7 @@ public class CitizenCommand extends CommandBase {
                     CitizenData citizen = colonyService.addCitizen(colonyId, citizenName, x, y, z, finalNpcSkin, false);
 
                     if (citizen != null) {
-                        boolean spawned = spawnCitizenNPC(store, colonyService, colonyId, citizen, finalNpcSkin);
+                        boolean spawned = spawnCitizenNPC(store, world, colonyService, colonyId, citizen, finalNpcSkin);
 
                         if (spawned) {
                             ctx.sendMessage(Message.raw("Spawned citizen '" + citizenName + "' (" + finalNpcSkin + ") in " + colony.getName() + "!"));
@@ -420,7 +421,7 @@ public class CitizenCommand extends CommandBase {
 
                     citizen.updateLastPosition(x, y, z);
 
-                    boolean spawned = spawnCitizenNPC(store, colonyService, colonyId, citizen, finalNpcSkin);
+                    boolean spawned = spawnCitizenNPC(store, world, colonyService, colonyId, citizen, finalNpcSkin);
 
                     if (spawned) {
                         ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' (" + finalNpcSkin + ") at " +
@@ -466,12 +467,16 @@ public class CitizenCommand extends CommandBase {
                 return;
             }
 
-            CitizenData removed = colonyService.removeCitizen(colony.getColonyId(), citizen.getCitizenId());
+            // Remove citizen data and queue entity removal
+            CitizenData removed = colonyService.removeCitizenWithEntity(colony.getColonyId(), citizen.getCitizenId());
 
             if (removed != null) {
                 ctx.sendMessage(Message.raw("Removed citizen '" + removed.getName() + "' from " + colony.getName() + "."));
                 ctx.sendMessage(Message.raw("Colony population: " + colony.getPopulation()));
-                ctx.sendMessage(Message.raw("Note: Spawned NPC entity remains in world until chunk unloads."));
+
+                // Process pending entity removals immediately
+                colonyService.processPendingEntityRemovals();
+                ctx.sendMessage(Message.raw("NPC entity despawned."));
             } else {
                 ctx.sendMessage(Message.raw("Citizen not found in colony."));
             }

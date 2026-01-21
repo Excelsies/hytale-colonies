@@ -4,18 +4,29 @@ import com.excelsies.hycolonies.colony.model.CitizenData;
 import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.storage.ColonyStorage;
 import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.RemoveReason;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Service layer that manages the lifecycle of colonies.
@@ -33,6 +44,10 @@ public class ColonyService {
     private final Map<UUID, ColonyData> loadedColonies;
     private final Map<UUID, UUID> playerColonyMap;  // Player UUID -> Colony UUID
     private final Map<UUID, Ref<EntityStore>> citizenEntityMap;  // Citizen UUID -> Entity Ref
+    private final Map<UUID, World> citizenWorldMap;  // Citizen UUID -> World (for entity removal)
+
+    // Pending entity removals that need to be processed on their world threads
+    private final List<PendingEntityRemoval> pendingEntityRemovals;
 
     /**
      * Creates a new ColonyService.
@@ -44,6 +59,8 @@ public class ColonyService {
         this.loadedColonies = new ConcurrentHashMap<>();
         this.playerColonyMap = new ConcurrentHashMap<>();
         this.citizenEntityMap = new ConcurrentHashMap<>();
+        this.citizenWorldMap = new ConcurrentHashMap<>();
+        this.pendingEntityRemovals = Collections.synchronizedList(new ArrayList<>());
     }
 
     /**
@@ -359,6 +376,8 @@ public class ColonyService {
 
     /**
      * Removes a citizen from a colony.
+     * Note: This method removes the citizen data but does NOT despawn the entity.
+     * Use removeCitizenWithEntity() to also remove the in-world entity.
      *
      * @param colonyId  The colony UUID
      * @param citizenId The citizen UUID to remove
@@ -378,6 +397,107 @@ public class ColonyService {
         }
         return null;
     }
+
+    /**
+     * Removes a citizen from a colony AND despawns their in-world entity.
+     * The entity removal will be queued and executed on the appropriate world thread.
+     *
+     * @param colonyId  The colony UUID
+     * @param citizenId The citizen UUID to remove
+     * @return The removed citizen data, or null if not found
+     */
+    public CitizenData removeCitizenWithEntity(UUID colonyId, UUID citizenId) {
+        CitizenData removed = removeCitizen(colonyId, citizenId);
+        if (removed != null) {
+            queueEntityRemoval(citizenId);
+        }
+        return removed;
+    }
+
+    /**
+     * Queues an entity for removal on the appropriate world thread.
+     *
+     * @param citizenId The citizen UUID whose entity should be removed
+     */
+    private void queueEntityRemoval(UUID citizenId) {
+        Ref<EntityStore> entityRef = citizenEntityMap.get(citizenId);
+        World world = citizenWorldMap.get(citizenId);
+
+        if (entityRef == null || world == null) {
+            // Entity not spawned, just clean up tracking
+            unregisterCitizenEntity(citizenId);
+            return;
+        }
+
+        // Queue the removal to be processed
+        pendingEntityRemovals.add(new PendingEntityRemoval(citizenId, entityRef, world));
+        LOGGER.atFine().log("Queued entity removal for citizen %s", citizenId.toString().substring(0, 8));
+    }
+
+    /**
+     * Processes all pending entity removals.
+     * Call this periodically or when appropriate to execute queued removals.
+     */
+    public void processPendingEntityRemovals() {
+        if (pendingEntityRemovals.isEmpty()) {
+            return;
+        }
+
+        List<PendingEntityRemoval> toProcess;
+        synchronized (pendingEntityRemovals) {
+            toProcess = new ArrayList<>(pendingEntityRemovals);
+            pendingEntityRemovals.clear();
+        }
+
+        for (PendingEntityRemoval removal : toProcess) {
+            removal.world.execute(() -> {
+                try {
+                    Store<EntityStore> store = removal.entityRef.getStore();
+                    if (store != null) {
+                        store.removeEntity(removal.entityRef, RemoveReason.REMOVE);
+                        LOGGER.atInfo().log("Despawned entity for citizen %s",
+                                removal.citizenId.toString().substring(0, 8));
+                    }
+                } catch (Exception e) {
+                    LOGGER.atWarning().withCause(e).log("Failed to despawn entity for citizen %s",
+                            removal.citizenId.toString().substring(0, 8));
+                } finally {
+                    // Clean up tracking regardless of success
+                    citizenEntityMap.remove(removal.citizenId);
+                    citizenWorldMap.remove(removal.citizenId);
+                }
+            });
+        }
+    }
+
+    /**
+     * Immediately removes a citizen entity on the current thread.
+     * MUST be called from the world thread!
+     *
+     * @param citizenId The citizen UUID
+     * @param store The entity store (must be from the same world)
+     */
+    public void despawnCitizenEntityImmediate(UUID citizenId, Store<EntityStore> store) {
+        Ref<EntityStore> entityRef = citizenEntityMap.get(citizenId);
+        if (entityRef == null) {
+            return;
+        }
+
+        try {
+            store.removeEntity(entityRef, RemoveReason.REMOVE);
+            LOGGER.atInfo().log("Despawned entity for citizen %s", citizenId.toString().substring(0, 8));
+        } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log("Failed to despawn entity for citizen %s",
+                    citizenId.toString().substring(0, 8));
+        } finally {
+            unregisterCitizenEntity(citizenId);
+        }
+    }
+
+    /**
+     * Represents a pending entity removal operation.
+     */
+    private record PendingEntityRemoval(UUID citizenId, Ref<EntityStore> entityRef, World world) {}
 
     /**
      * Deletes a colony and all its citizens.
@@ -406,9 +526,14 @@ public class ColonyService {
 
     /**
      * Saves all loaded colonies to disk.
+     * Attempts to sync citizen positions before saving.
      */
     public void saveAll() {
         LOGGER.atInfo().log("Saving all colonies...");
+
+        // Sync citizen positions before save
+        syncAllCitizenPositions();
+
         int saved = 0;
         for (ColonyData colony : loadedColonies.values()) {
             if (storage.save(colony)) {
@@ -416,6 +541,99 @@ public class ColonyService {
             }
         }
         LOGGER.atInfo().log("Saved %d/%d colonies", saved, loadedColonies.size());
+    }
+
+    /**
+     * Synchronizes all spawned citizen entity positions to their CitizenData.
+     * This updates last known positions before persistence.
+     * Note: This schedules position syncs on each world thread.
+     */
+    public void syncAllCitizenPositions() {
+        if (citizenEntityMap.isEmpty()) {
+            return;
+        }
+
+        // Group citizens by world for efficient batch processing
+        Map<World, Set<UUID>> citizensByWorld = new HashMap<>();
+        for (Map.Entry<UUID, World> entry : citizenWorldMap.entrySet()) {
+            UUID citizenId = entry.getKey();
+            World world = entry.getValue();
+            if (world != null && citizenEntityMap.containsKey(citizenId)) {
+                citizensByWorld.computeIfAbsent(world, k -> new HashSet<>()).add(citizenId);
+            }
+        }
+
+        AtomicInteger synced = new AtomicInteger(0);
+        AtomicInteger failed = new AtomicInteger(0);
+
+        // Schedule sync on each world thread
+        for (Map.Entry<World, Set<UUID>> entry : citizensByWorld.entrySet()) {
+            World world = entry.getKey();
+            Set<UUID> citizenIds = entry.getValue();
+
+            world.execute(() -> {
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                if (store == null) return;
+
+                for (UUID citizenId : citizenIds) {
+                    if (syncCitizenPositionInternal(citizenId, store)) {
+                        synced.incrementAndGet();
+                    } else {
+                        failed.incrementAndGet();
+                    }
+                }
+            });
+        }
+
+        LOGGER.atFine().log("Scheduled position sync for %d citizens across %d worlds",
+                citizenEntityMap.size(), citizensByWorld.size());
+    }
+
+    /**
+     * Synchronizes a single citizen's position from their entity to CitizenData.
+     * Must be called from the world thread.
+     *
+     * @param citizenId The citizen UUID
+     * @param store     The entity store
+     * @return true if sync was successful
+     */
+    public boolean syncCitizenPosition(UUID citizenId, Store<EntityStore> store) {
+        return syncCitizenPositionInternal(citizenId, store);
+    }
+
+    /**
+     * Internal method to sync a citizen's position.
+     */
+    private boolean syncCitizenPositionInternal(UUID citizenId, Store<EntityStore> store) {
+        Ref<EntityStore> entityRef = citizenEntityMap.get(citizenId);
+        if (entityRef == null) {
+            return false;
+        }
+
+        try {
+            TransformComponent transform = store.getComponent(entityRef, TransformComponent.getComponentType());
+            if (transform == null || transform.getPosition() == null) {
+                return false;
+            }
+
+            Vector3d position = transform.getPosition();
+
+            // Find the citizen data and update it
+            for (ColonyData colony : loadedColonies.values()) {
+                CitizenData citizen = colony.getCitizen(citizenId);
+                if (citizen != null) {
+                    citizen.updateLastPosition(position.getX(), position.getY(), position.getZ());
+                    LOGGER.atFine().log("Synced position for citizen %s: (%.1f, %.1f, %.1f)",
+                            citizenId.toString().substring(0, 8),
+                            position.getX(), position.getY(), position.getZ());
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.atFine().log("Failed to sync position for citizen %s: %s",
+                    citizenId.toString().substring(0, 8), e.getMessage());
+        }
+        return false;
     }
 
     /**
@@ -456,10 +674,23 @@ public class ColonyService {
      *
      * @param citizenId The citizen UUID
      * @param entityRef The entity reference
+     * @param world     The world the entity is in
      */
-    public void registerCitizenEntity(UUID citizenId, Ref<EntityStore> entityRef) {
+    public void registerCitizenEntity(UUID citizenId, Ref<EntityStore> entityRef, World world) {
         citizenEntityMap.put(citizenId, entityRef);
+        if (world != null) {
+            citizenWorldMap.put(citizenId, world);
+        }
         LOGGER.atFine().log("Registered entity for citizen %s", citizenId.toString().substring(0, 8));
+    }
+
+    /**
+     * Registers an entity reference for a citizen (without world tracking).
+     * @deprecated Use {@link #registerCitizenEntity(UUID, Ref, World)} instead
+     */
+    @Deprecated
+    public void registerCitizenEntity(UUID citizenId, Ref<EntityStore> entityRef) {
+        registerCitizenEntity(citizenId, entityRef, null);
     }
 
     /**
@@ -470,6 +701,7 @@ public class ColonyService {
      */
     public void unregisterCitizenEntity(UUID citizenId) {
         citizenEntityMap.remove(citizenId);
+        citizenWorldMap.remove(citizenId);
         LOGGER.atFine().log("Unregistered entity for citizen %s", citizenId.toString().substring(0, 8));
     }
 
@@ -502,13 +734,23 @@ public class ColonyService {
 
     /**
      * Shuts down the service, saving all data.
+     * Syncs citizen positions before final save.
      */
     public void shutdown() {
         LOGGER.atInfo().log("Shutting down ColonyService...");
+
+        // Process any pending entity removals
+        processPendingEntityRemovals();
+
+        // Save all data (includes position sync)
         saveAll();
+
+        // Clear all in-memory data
         loadedColonies.clear();
         playerColonyMap.clear();
         citizenEntityMap.clear();
+        citizenWorldMap.clear();
+
         LOGGER.atInfo().log("ColonyService shutdown complete");
     }
 }
