@@ -3,6 +3,7 @@ package com.excelsies.hycolonies.command;
 import com.excelsies.hycolonies.colony.model.CitizenData;
 import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.service.ColonyService;
+import com.excelsies.hycolonies.colony.service.SkinGenerator;
 import com.excelsies.hycolonies.ecs.component.CitizenComponent;
 import com.excelsies.hycolonies.ecs.component.JobComponent;
 import com.excelsies.hycolonies.ecs.component.JobType;
@@ -169,7 +170,7 @@ public class CitizenCommand extends CommandBase {
                         store.addComponent(entityRef, CitizenComponent.getComponentType(), citizenComponent);
                     }
 
-                    // Apply cosmetics if available (e.g. for Avatar citizens)
+                    // Apply cosmetics if available
                     if (citizen.getSkinCosmetics() != null && !citizen.getSkinCosmetics().isEmpty()) {
                         try {
                             Type type = new TypeToken<Map<String, String>>(){}.getType();
@@ -178,19 +179,18 @@ public class CitizenCommand extends CommandBase {
                             if (cosmetics != null && PlayerSkinComponent.getComponentType() != null) {
                                 PlayerSkin skin = new PlayerSkin();
                                 
-                                // Initialize ALL fields to empty string or SAFE defaults with Color IDs where required
-                                // Schema requires partId.colorId for many fields
-                                skin.bodyCharacteristic = "Default.04";
-                                skin.underwear = "Boxer.White";
-                                skin.face = "Face_Neutral"; // String type, no color
-                                skin.eyes = "Medium_Eyes.Blue";
-                                skin.eyebrows = "Medium.Brown";
-                                skin.mouth = "Mouth_Default"; // String type, no color
-                                skin.ears = "Default"; // String type, no color
-                                skin.haircut = "Morning.Brown";
-                                skin.pants = "Jeans.Blue";
-                                skin.overtop = "Tartan.Red";
-                                skin.shoes = "BasicBoots.Brown";
+                                // Initialize ALL fields to safe defaults using constants
+                                skin.bodyCharacteristic = SkinGenerator.DEFAULT_BODY;
+                                skin.underwear = SkinGenerator.DEFAULT_UNDERWEAR;
+                                skin.face = SkinGenerator.DEFAULT_FACE;
+                                skin.eyes = SkinGenerator.DEFAULT_EYES;
+                                skin.eyebrows = SkinGenerator.DEFAULT_EYEBROWS;
+                                skin.mouth = SkinGenerator.DEFAULT_MOUTH;
+                                skin.ears = SkinGenerator.DEFAULT_EARS;
+                                skin.haircut = SkinGenerator.DEFAULT_HAIRCUT;
+                                skin.pants = SkinGenerator.DEFAULT_PANTS;
+                                skin.overtop = SkinGenerator.DEFAULT_OVERTOP;
+                                skin.shoes = SkinGenerator.DEFAULT_SHOES;
                                 
                                 skin.undertop = "";
                                 skin.overpants = "";
@@ -203,30 +203,28 @@ public class CitizenCommand extends CommandBase {
                                 skin.skinFeature = "";
                                 
                                 // Override with generated cosmetics if present and valid
-                                if (cosmetics != null) {
-                                    if (cosmetics.containsKey("BODY") && cosmetics.get("BODY") != null) skin.bodyCharacteristic = cosmetics.get("BODY");
-                                    if (cosmetics.containsKey("UNDERWEAR") && cosmetics.get("UNDERWEAR") != null) skin.underwear = cosmetics.get("UNDERWEAR");
-                                    
-                                    if (cosmetics.containsKey("HAIR") && cosmetics.get("HAIR") != null) skin.haircut = cosmetics.get("HAIR");
-                                    if (cosmetics.containsKey("FACE") && cosmetics.get("FACE") != null) skin.face = cosmetics.get("FACE");
-                                    if (cosmetics.containsKey("EYES") && cosmetics.get("EYES") != null) skin.eyes = cosmetics.get("EYES");
-                                    if (cosmetics.containsKey("EYEBROWS") && cosmetics.get("EYEBROWS") != null) skin.eyebrows = cosmetics.get("EYEBROWS");
-                                    if (cosmetics.containsKey("MOUTH") && cosmetics.get("MOUTH") != null) skin.mouth = cosmetics.get("MOUTH");
-                                    if (cosmetics.containsKey("EARS") && cosmetics.get("EARS") != null) skin.ears = cosmetics.get("EARS");
-                                    
-                                    if (cosmetics.containsKey("PANTS") && cosmetics.get("PANTS") != null) skin.pants = cosmetics.get("PANTS");
-                                    if (cosmetics.containsKey("OVERTOP") && cosmetics.get("OVERTOP") != null) skin.overtop = cosmetics.get("OVERTOP");
-                                    if (cosmetics.containsKey("UNDERTOP") && cosmetics.get("UNDERTOP") != null) skin.undertop = cosmetics.get("UNDERTOP");
-                                    if (cosmetics.containsKey("SHOES") && cosmetics.get("SHOES") != null) skin.shoes = cosmetics.get("SHOES");
-                                    if (cosmetics.containsKey("OVERPANTS") && cosmetics.get("OVERPANTS") != null) skin.overpants = cosmetics.get("OVERPANTS");
-                                    
-                                    if (cosmetics.containsKey("CAPE") && cosmetics.get("CAPE") != null) skin.cape = cosmetics.get("CAPE");
-                                    if (cosmetics.containsKey("HEAD_ACCESSORY") && cosmetics.get("HEAD_ACCESSORY") != null) skin.headAccessory = cosmetics.get("HEAD_ACCESSORY");
-                                    if (cosmetics.containsKey("FACE_ACCESSORY") && cosmetics.get("FACE_ACCESSORY") != null) skin.faceAccessory = cosmetics.get("FACE_ACCESSORY");
-                                    if (cosmetics.containsKey("EAR_ACCESSORY") && cosmetics.get("EAR_ACCESSORY") != null) skin.earAccessory = cosmetics.get("EAR_ACCESSORY");
-                                    if (cosmetics.containsKey("FACIAL_HAIR") && cosmetics.get("FACIAL_HAIR") != null) skin.facialHair = cosmetics.get("FACIAL_HAIR");
-                                    if (cosmetics.containsKey("GLOVES") && cosmetics.get("GLOVES") != null) skin.gloves = cosmetics.get("GLOVES");
-                                }
+                                if (cosmetics.containsKey(SkinGenerator.KEY_BODY) && cosmetics.get(SkinGenerator.KEY_BODY) != null) skin.bodyCharacteristic = cosmetics.get(SkinGenerator.KEY_BODY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_UNDERWEAR) && cosmetics.get(SkinGenerator.KEY_UNDERWEAR) != null) skin.underwear = cosmetics.get(SkinGenerator.KEY_UNDERWEAR);
+                                
+                                if (cosmetics.containsKey(SkinGenerator.KEY_HAIR) && cosmetics.get(SkinGenerator.KEY_HAIR) != null) skin.haircut = cosmetics.get(SkinGenerator.KEY_HAIR);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_FACE) && cosmetics.get(SkinGenerator.KEY_FACE) != null) skin.face = cosmetics.get(SkinGenerator.KEY_FACE);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EYES) && cosmetics.get(SkinGenerator.KEY_EYES) != null) skin.eyes = cosmetics.get(SkinGenerator.KEY_EYES);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EYEBROWS) && cosmetics.get(SkinGenerator.KEY_EYEBROWS) != null) skin.eyebrows = cosmetics.get(SkinGenerator.KEY_EYEBROWS);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_MOUTH) && cosmetics.get(SkinGenerator.KEY_MOUTH) != null) skin.mouth = cosmetics.get(SkinGenerator.KEY_MOUTH);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EARS) && cosmetics.get(SkinGenerator.KEY_EARS) != null) skin.ears = cosmetics.get(SkinGenerator.KEY_EARS);
+                                
+                                if (cosmetics.containsKey(SkinGenerator.KEY_PANTS) && cosmetics.get(SkinGenerator.KEY_PANTS) != null) skin.pants = cosmetics.get(SkinGenerator.KEY_PANTS);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_OVERTOP) && cosmetics.get(SkinGenerator.KEY_OVERTOP) != null) skin.overtop = cosmetics.get(SkinGenerator.KEY_OVERTOP);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_UNDERTOP) && cosmetics.get(SkinGenerator.KEY_UNDERTOP) != null) skin.undertop = cosmetics.get(SkinGenerator.KEY_UNDERTOP);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_SHOES) && cosmetics.get(SkinGenerator.KEY_SHOES) != null) skin.shoes = cosmetics.get(SkinGenerator.KEY_SHOES);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_OVERPANTS) && cosmetics.get(SkinGenerator.KEY_OVERPANTS) != null) skin.overpants = cosmetics.get(SkinGenerator.KEY_OVERPANTS);
+                                
+                                if (cosmetics.containsKey(SkinGenerator.KEY_CAPE) && cosmetics.get(SkinGenerator.KEY_CAPE) != null) skin.cape = cosmetics.get(SkinGenerator.KEY_CAPE);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_HEAD_ACCESSORY) && cosmetics.get(SkinGenerator.KEY_HEAD_ACCESSORY) != null) skin.headAccessory = cosmetics.get(SkinGenerator.KEY_HEAD_ACCESSORY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_FACE_ACCESSORY) && cosmetics.get(SkinGenerator.KEY_FACE_ACCESSORY) != null) skin.faceAccessory = cosmetics.get(SkinGenerator.KEY_FACE_ACCESSORY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EAR_ACCESSORY) && cosmetics.get(SkinGenerator.KEY_EAR_ACCESSORY) != null) skin.earAccessory = cosmetics.get(SkinGenerator.KEY_EAR_ACCESSORY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_FACIAL_HAIR) && cosmetics.get(SkinGenerator.KEY_FACIAL_HAIR) != null) skin.facialHair = cosmetics.get(SkinGenerator.KEY_FACIAL_HAIR);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_GLOVES) && cosmetics.get(SkinGenerator.KEY_GLOVES) != null) skin.gloves = cosmetics.get(SkinGenerator.KEY_GLOVES);
 
                                 store.addComponent(entityRef, PlayerSkinComponent.getComponentType(), new PlayerSkinComponent(skin));
                                 LOGGER.atFine().log("Applied cosmetics to citizen %s", citizen.getName());
@@ -342,8 +340,6 @@ public class CitizenCommand extends CommandBase {
                         } else {
                             ctx.sendMessage(Message.raw("Added citizen '" + citizenName + "' but NPC spawn failed."));
                         }
-                        ctx.sendMessage(Message.raw("Colony population: " + colony.getPopulation()));
-                        ctx.sendMessage(Message.raw("Location: " + (int) x + ", " + (int) y + ", " + (int) z));
                     } else {
                         ctx.sendMessage(Message.raw("Failed to add citizen."));
                     }

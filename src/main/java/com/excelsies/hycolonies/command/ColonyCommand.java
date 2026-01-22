@@ -2,12 +2,18 @@ package com.excelsies.hycolonies.command;
 
 import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.service.ColonyService;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
+import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -78,24 +84,58 @@ public class ColonyCommand extends CommandBase {
                 return;
             }
 
-            // Create colony with placeholder owner (no player context available in base API)
-            UUID placeholderOwner = UUID.randomUUID();
-            ColonyData colony = colonyService.createColony(
-                    name,
-                    placeholderOwner,
-                    0, 64, 0,  // Placeholder position
-                    "default",
-                    faction
-            );
-
-            if (colony != null) {
-                ctx.sendMessage(Message.raw("Colony '" + name + "' created successfully!"));
-                ctx.sendMessage(Message.raw("Faction: " + colony.getFaction().getDisplayName()));
-                ctx.sendMessage(Message.raw("Colony ID: " + colony.getColonyId()));
-                ctx.sendMessage(Message.raw("Use /citizen add [colony-id] [name] to add citizens."));
-            } else {
-                ctx.sendMessage(Message.raw("Failed to create colony."));
+            // Get player position for colony center
+            if (!ctx.isPlayer()) {
+                ctx.sendMessage(Message.raw("This command must be run by a player."));
+                return;
             }
+
+            Player player = ctx.senderAs(Player.class);
+            World world = player.getWorld();
+            Ref<EntityStore> playerRef = player.getReference();
+
+            if (world == null || playerRef == null) {
+                ctx.sendMessage(Message.raw("Could not get player world or reference."));
+                return;
+            }
+
+            UUID ownerUuid = player.getPlayerRef().getUuid();
+            String worldId = world.getName() != null ? world.getName() : "default";
+
+            // Execute on world thread to access store and get position
+            world.execute(() -> {
+                Store<EntityStore> store = playerRef.getStore();
+                TransformComponent transform = store.getComponent(playerRef, TransformComponent.getComponentType());
+
+                double centerX = 0;
+                double centerY = 64;
+                double centerZ = 0;
+
+                if (transform != null && transform.getPosition() != null) {
+                    var pos = transform.getPosition();
+                    centerX = pos.getX();
+                    centerY = pos.getY();
+                    centerZ = pos.getZ();
+                }
+
+                ColonyData colony = colonyService.createColony(
+                        name,
+                        ownerUuid,
+                        centerX, centerY, centerZ,
+                        worldId,
+                        faction
+                );
+
+                if (colony != null) {
+                    ctx.sendMessage(Message.raw("Colony '" + name + "' created successfully!"));
+                    ctx.sendMessage(Message.raw("Faction: " + colony.getFaction().getDisplayName()));
+                    ctx.sendMessage(Message.raw("Colony ID: " + colony.getColonyId()));
+                    ctx.sendMessage(Message.raw("Center: (" + (int) centerX + ", " + (int) centerY + ", " + (int) centerZ + ")"));
+                    ctx.sendMessage(Message.raw("Use /citizen add [colony-id] [name] to add citizens."));
+                } else {
+                    ctx.sendMessage(Message.raw("Failed to create colony."));
+                }
+            });
         }
     }
 
