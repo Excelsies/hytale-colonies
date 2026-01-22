@@ -19,7 +19,10 @@ import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerBlockState;
+import com.hypixel.hytale.math.util.ChunkUtil;
 
 import com.excelsies.hycolonies.logistics.model.ItemEntry;
 
@@ -168,10 +171,42 @@ public class WarehouseCommand extends CommandBase {
                     return;
                 }
 
+                // Validate that the block is actually an item container before registering
+                long chunkKey = ChunkUtil.indexChunkFromBlock(targetPos.getX(), targetPos.getZ());
+                WorldChunk chunk = world.getChunkIfLoaded(chunkKey);
+
+                if (chunk == null) {
+                    ctx.sendMessage(Message.raw("Could not load chunk at target position."));
+                    return;
+                }
+
+                int localX = ChunkUtil.localCoordinate(targetPos.getX());
+                int localY = targetPos.getY();
+                int localZ = ChunkUtil.localCoordinate(targetPos.getZ());
+
+                @SuppressWarnings({"deprecation", "removal"})
+                var blockState = chunk.getState(localX, localY, localZ);
+
+                if (!(blockState instanceof ItemContainerBlockState containerState)) {
+                    ctx.sendMessage(Message.raw("Block at target position is not a container."));
+                    ctx.sendMessage(Message.raw("Look at a chest or other container block and try again."));
+                    return;
+                }
+
+                // Verify the container exists
+                if (containerState.getItemContainer() == null) {
+                    ctx.sendMessage(Message.raw("Block has no inventory. Please look at a valid container."));
+                    return;
+                }
+
+                // Determine block type and capacity from the actual container
+                String blockType = "Container";
+                int capacity = containerState.getItemContainer().getCapacity();
+
                 // Register the warehouse
                 String worldId = "default";
 
-                WarehouseData warehouseData = new WarehouseData(targetPos, "Chest", 27, worldId);
+                WarehouseData warehouseData = new WarehouseData(targetPos, blockType, capacity, worldId);
                 colony.addWarehouse(warehouseData);
 
                 // Update registry and cache
@@ -179,10 +214,12 @@ public class WarehouseCommand extends CommandBase {
                 inventoryCache.registerWarehouse(colonyId, targetPos);
 
                 // Register event listener for this container (event-driven cache updates)
+                // This is now guaranteed to succeed since we validated the container above
                 changeHandler.registerContainerListener(colonyId, targetPos, world);
 
                 ctx.sendMessage(Message.raw("Registered warehouse at (" +
                         targetPos.getX() + ", " + targetPos.getY() + ", " + targetPos.getZ() + ")"));
+                ctx.sendMessage(Message.raw("Container type: " + blockType + " (capacity: " + capacity + " slots)"));
                 ctx.sendMessage(Message.raw("Colony '" + colony.getName() + "' now has " +
                         colony.getWarehouseCount() + " warehouse(s)."));
             });
