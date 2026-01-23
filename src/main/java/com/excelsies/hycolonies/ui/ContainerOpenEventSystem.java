@@ -41,11 +41,20 @@ public class ContainerOpenEventSystem extends EntityEventSystem<EntityStore, Use
 
     private final ColonyService colonyService;
     private final PlayerContainerTracker containerTracker;
+    private final com.excelsies.hycolonies.warehouse.WarehouseRegistry warehouseRegistry;
+    private final com.excelsies.hycolonies.logistics.service.InventoryCacheService inventoryCache;
+    private final com.excelsies.hycolonies.logistics.event.InventoryChangeHandler changeHandler;
 
-    public ContainerOpenEventSystem(ColonyService colonyService, PlayerContainerTracker containerTracker) {
+    public ContainerOpenEventSystem(ColonyService colonyService, PlayerContainerTracker containerTracker,
+                                    com.excelsies.hycolonies.warehouse.WarehouseRegistry warehouseRegistry,
+                                    com.excelsies.hycolonies.logistics.service.InventoryCacheService inventoryCache,
+                                    com.excelsies.hycolonies.logistics.event.InventoryChangeHandler changeHandler) {
         super(UseBlockEvent.Post.class);
         this.colonyService = colonyService;
         this.containerTracker = containerTracker;
+        this.warehouseRegistry = warehouseRegistry;
+        this.inventoryCache = inventoryCache;
+        this.changeHandler = changeHandler;
         LOGGER.atInfo().log("ContainerOpenEventSystem created for UseBlockEvent.Post");
     }
 
@@ -199,7 +208,10 @@ public class ContainerOpenEventSystem extends EntityEventSystem<EntityStore, Use
                         world,
                         capacity,
                         container,
-                        containerTracker
+                        containerTracker,
+                        warehouseRegistry,
+                        inventoryCache,
+                        changeHandler
                 );
 
                 // Get entity ref for opening page

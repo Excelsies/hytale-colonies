@@ -290,7 +290,13 @@ public class HyColoniesPlugin extends JavaPlugin {
 
         // Container open event system - shows warehouse registration HUD overlay
         // Block events must be handled via EntityEventSystem, not simple event registration
-        containerOpenEventSystem = new ContainerOpenEventSystem(colonyService, playerContainerTracker);
+        containerOpenEventSystem = new ContainerOpenEventSystem(
+                colonyService,
+                playerContainerTracker,
+                warehouseRegistry,
+                inventoryCacheService,
+                inventoryChangeHandler
+        );
         getEntityStoreRegistry().registerSystem(containerOpenEventSystem);
         LOGGER.atInfo().log("  - Registered ContainerOpenEventSystem for UseBlockEvent.Post");
     }
