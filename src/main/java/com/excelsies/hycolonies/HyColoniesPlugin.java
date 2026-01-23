@@ -273,7 +273,7 @@ public class HyColoniesPlugin extends JavaPlugin {
 
         // Phase 2: /warehouse command - manage warehouses
         getCommandRegistry().registerCommand(
-                new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler, playerContainerTracker)
+                new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler)
         );
 
         // Phase 2: /logistics command - debug logistics system

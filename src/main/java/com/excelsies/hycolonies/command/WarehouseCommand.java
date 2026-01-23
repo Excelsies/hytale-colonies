@@ -42,6 +42,7 @@ import java.util.UUID;
 public class WarehouseCommand extends CommandBase {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    private static final double DEFAULT_COLONY_RADIUS = 100.0;
 
     public WarehouseCommand(ColonyService colonyService, WarehouseRegistry warehouseRegistry,
                             InventoryCacheService inventoryCache, InventoryChangeHandler changeHandler) {
@@ -52,11 +53,13 @@ public class WarehouseCommand extends CommandBase {
         addSubCommand(new ListSubCommand(colonyService));
         addSubCommand(new UnregisterSubCommand(colonyService, warehouseRegistry, inventoryCache, changeHandler));
         addSubCommand(new StockSubCommand(colonyService, inventoryCache));
+        addSubCommand(new ToggleSubCommand(colonyService, warehouseRegistry, inventoryCache, changeHandler));
     }
 
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
         ctx.sendMessage(Message.raw("Usage:"));
+        ctx.sendMessage(Message.raw("  /warehouse toggle - Toggle registration of looked-at container"));
         ctx.sendMessage(Message.raw("  /warehouse register [colony] - Register block at crosshair"));
         ctx.sendMessage(Message.raw("  /warehouse list [colony] - List warehouses"));
         ctx.sendMessage(Message.raw("  /warehouse unregister [colony] - Remove warehouse at crosshair"));
@@ -108,6 +111,33 @@ public class WarehouseCommand extends CommandBase {
         int targetZ = (int) Math.floor(pos.getZ() + Math.cos(yaw) * 2);
 
         return new Vector3i(targetX, targetY, targetZ);
+    }
+    
+    /**
+     * Finds the colony that contains the given block position.
+     */
+    private static ColonyData findColonyContainingPosition(ColonyService colonyService, Vector3i blockPos, String worldId) {
+        for (ColonyData colony : colonyService.getAllColonies()) {
+            if (!worldId.equals(colony.getWorldId())) {
+                continue;
+            }
+
+            double centerX = colony.getCenterX();
+            double centerY = colony.getCenterY();
+            double centerZ = colony.getCenterZ();
+
+            double dx = blockPos.getX() - centerX;
+            double dy = blockPos.getY() - centerY;
+            double dz = blockPos.getZ() - centerZ;
+            double distanceSquared = dx * dx + dy * dy + dz * dz;
+
+            double radiusSquared = DEFAULT_COLONY_RADIUS * DEFAULT_COLONY_RADIUS;
+
+            if (distanceSquared <= radiusSquared) {
+                return colony;
+            }
+        }
+        return null;
     }
 
     // =====================
@@ -451,6 +481,119 @@ public class WarehouseCommand extends CommandBase {
                 ctx.sendMessage(Message.raw("Warehouse contents:"));
                 for (ItemEntry entry : currentContents) {
                     ctx.sendMessage(Message.raw("  - " + entry.itemId() + " x" + entry.quantity()));
+                }
+            });
+        }
+    }
+
+    // =====================
+    // Subcommand: toggle
+    // =====================
+    private static class ToggleSubCommand extends CommandBase {
+        private final ColonyService colonyService;
+        private final WarehouseRegistry warehouseRegistry;
+        private final InventoryCacheService inventoryCache;
+        private final InventoryChangeHandler changeHandler;
+
+        public ToggleSubCommand(ColonyService colonyService, WarehouseRegistry warehouseRegistry,
+                                InventoryCacheService inventoryCache, InventoryChangeHandler changeHandler) {
+            super("toggle", "Toggle warehouse registration for looked-at container");
+            this.colonyService = colonyService;
+            this.warehouseRegistry = warehouseRegistry;
+            this.inventoryCache = inventoryCache;
+            this.changeHandler = changeHandler;
+        }
+
+        @Override
+        protected void executeSync(@Nonnull CommandContext ctx) {
+            if (!ctx.isPlayer()) {
+                ctx.sendMessage(Message.raw("This command must be run by a player."));
+                return;
+            }
+
+            Player player = ctx.senderAs(Player.class);
+            World world = player.getWorld();
+            Ref<EntityStore> playerRef = player.getReference();
+
+            if (world == null || playerRef == null) {
+                ctx.sendMessage(Message.raw("Could not get player world or reference."));
+                return;
+            }
+
+            // Execute on world thread to access store
+            world.execute(() -> {
+                Store<EntityStore> store = playerRef.getStore();
+                Vector3i targetPos = getTargetBlock(store, playerRef);
+
+                if (targetPos == null) {
+                    ctx.sendMessage(Message.raw("Could not determine target block position."));
+                    return;
+                }
+
+                // 1. Verify it's a container
+                long chunkKey = ChunkUtil.indexChunkFromBlock(targetPos.getX(), targetPos.getZ());
+                WorldChunk chunk = world.getChunkIfLoaded(chunkKey);
+
+                if (chunk == null) {
+                    ctx.sendMessage(Message.raw("Chunk not loaded at target position."));
+                    return;
+                }
+
+                int localX = ChunkUtil.localCoordinate(targetPos.getX());
+                int localY = targetPos.getY();
+                int localZ = ChunkUtil.localCoordinate(targetPos.getZ());
+
+                @SuppressWarnings({"deprecation", "removal"})
+                var blockState = chunk.getState(localX, localY, localZ);
+
+                if (!(blockState instanceof ItemContainerBlockState containerState) || containerState.getItemContainer() == null) {
+                    ctx.sendMessage(Message.raw("Block at target position is not a valid container."));
+                    return;
+                }
+
+                // 2. Find colony context
+                String worldId = world.getName() != null ? world.getName() : "default";
+                ColonyData colony = findColonyContainingPosition(colonyService, targetPos, worldId);
+
+                if (colony == null) {
+                    ctx.sendMessage(Message.raw("No colony found at this location."));
+                    return;
+                }
+
+                UUID colonyId = colony.getColonyId();
+
+                try {
+                    if (colony.hasWarehouseAt(targetPos)) {
+                        // Unregister
+                        changeHandler.unregisterContainerListener(targetPos);
+                        colony.removeWarehouse(targetPos);
+                        warehouseRegistry.unregisterWarehouse(targetPos);
+                        inventoryCache.unregisterWarehouse(colonyId, targetPos);
+
+                        ctx.sendMessage(Message.raw("Unregistered warehouse at (" +
+                                targetPos.getX() + ", " + targetPos.getY() + ", " + targetPos.getZ() + ")"));
+                    } else {
+                        // Register
+                        int capacity = containerState.getItemContainer().getCapacity();
+                        WarehouseData warehouseData = new WarehouseData(
+                                targetPos,
+                                "Container",
+                                capacity,
+                                worldId
+                        );
+                        colony.addWarehouse(warehouseData);
+                        warehouseRegistry.registerWarehouse(colonyId, targetPos);
+                        inventoryCache.registerWarehouse(colonyId, targetPos);
+                        changeHandler.registerContainerListener(colonyId, targetPos, world);
+
+                        ctx.sendMessage(Message.raw("Registered warehouse at (" +
+                                targetPos.getX() + ", " + targetPos.getY() + ", " + targetPos.getZ() + ")"));
+                        ctx.sendMessage(Message.raw("Colony '" + colony.getName() + "' now has " +
+                                colony.getWarehouseCount() + " warehouse(s)."));
+                    }
+                } catch (Exception e) {
+                    LOGGER.atWarning().withCause(e).log("Failed to toggle warehouse registration");
+                    ctx.sendMessage(Message.raw("Failed to toggle warehouse registration."));
                 }
             });
         }
