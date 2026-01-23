@@ -18,6 +18,8 @@ import com.excelsies.hycolonies.ecs.tag.CourierActiveTag;
 import com.excelsies.hycolonies.ecs.tag.IdleTag;
 import com.excelsies.hycolonies.logistics.service.InventoryCacheService;
 import com.excelsies.hycolonies.logistics.service.LogisticsService;
+import com.excelsies.hycolonies.ui.ContainerOpenEventSystem;
+import com.excelsies.hycolonies.ui.PlayerContainerTracker;
 import com.excelsies.hycolonies.warehouse.WarehouseRegistry;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -66,6 +68,10 @@ public class HyColoniesPlugin extends JavaPlugin {
     private LogisticsService logisticsService;
     private InventoryChangeHandler inventoryChangeHandler;
 
+    // UI Handlers
+    private ContainerOpenEventSystem containerOpenEventSystem;
+    private PlayerContainerTracker playerContainerTracker;
+
     /**
      * Plugin constructor - called when the plugin is loaded.
      */
@@ -99,6 +105,9 @@ public class HyColoniesPlugin extends JavaPlugin {
         // Register commands
         registerCommands();
 
+        // Register UI event handlers
+        registerEventHandlers();
+
         // Start auto-save scheduler
         startAutoSave();
 
@@ -108,6 +117,7 @@ public class HyColoniesPlugin extends JavaPlugin {
         LOGGER.atInfo().log("HyColonies setup complete!");
         LOGGER.atInfo().log("  - Registered 6 ECS components and 3 systems");
         LOGGER.atInfo().log("  - Registered 4 commands (/colony, /citizen, /warehouse, /logistics)");
+        LOGGER.atInfo().log("  - Registered container open event handler for warehouse HUD overlay");
         LOGGER.atInfo().log("  - Loaded " + colonyService.getColonyCount() + " colonies from disk");
         LOGGER.atInfo().log("  - Logistics system initialized with inventory scanning");
     }
@@ -225,6 +235,9 @@ public class HyColoniesPlugin extends JavaPlugin {
         inventoryChangeHandler.start(HytaleServer.SCHEDULED_EXECUTOR);
         LOGGER.atInfo().log("  - Started InventoryChangeHandler");
 
+        // Initialize player container tracker (used by UI handlers and commands)
+        playerContainerTracker = new PlayerContainerTracker();
+
         // Load existing warehouses into registry and cache
         loadWarehousesFromColonies();
     }
@@ -260,13 +273,26 @@ public class HyColoniesPlugin extends JavaPlugin {
 
         // Phase 2: /warehouse command - manage warehouses
         getCommandRegistry().registerCommand(
-                new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler)
+                new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler, playerContainerTracker)
         );
 
         // Phase 2: /logistics command - debug logistics system
         getCommandRegistry().registerCommand(
                 new LogisticsCommand(logisticsService, inventoryCacheService, colonyService)
         );
+    }
+
+    /**
+     * Registers UI event handlers.
+     */
+    private void registerEventHandlers() {
+        LOGGER.atInfo().log("Registering event handlers...");
+
+        // Container open event system - shows warehouse registration HUD overlay
+        // Block events must be handled via EntityEventSystem, not simple event registration
+        containerOpenEventSystem = new ContainerOpenEventSystem(colonyService, playerContainerTracker);
+        getEntityStoreRegistry().registerSystem(containerOpenEventSystem);
+        LOGGER.atInfo().log("  - Registered ContainerOpenEventSystem for UseBlockEvent.Post");
     }
 
     /**
@@ -334,5 +360,12 @@ public class HyColoniesPlugin extends JavaPlugin {
      */
     public InventoryChangeHandler getInventoryChangeHandler() {
         return inventoryChangeHandler;
+    }
+
+    /**
+     * Gets the player container tracker.
+     */
+    public PlayerContainerTracker getPlayerContainerTracker() {
+        return playerContainerTracker;
     }
 }
