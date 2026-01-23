@@ -1,0 +1,55 @@
+$Common = "../Common.ui";
+
+$Common.@DecoratedContainer #Panel {
+    @ContentPadding = Padding(Full: 15);
+    Anchor: (Width: 630, Height: 400);
+
+    #Title {
+        Group {
+            LayoutMode: Left;
+            Padding: (Left: 10, Top: 8);
+
+            // Inline CheckBox Group to expose ID directly
+            Group #WarehouseToggleGroup {
+                LayoutMode: Left;
+                
+                $Common.@CheckBox #WarehouseToggle {
+                    TooltipText: "Check to register this container as a colony warehouse.
+Citizens will be able to store and retrieve items here.";
+                }
+                
+                Label {
+                    Text: "Warehouse";
+                    Anchor: (Left: 8);
+                    Style: (
+                        FontSize: 16, 
+                        TextColor: #b4c8c9,
+                        RenderBold: true,
+                        VerticalAlignment: Center
+                    );
+                }
+            }
+            
+            Group {
+                Anchor: (Width: 20); // Spacer
+            }
+
+            // The Title Label
+            $Common.@Title #TitleLabel {
+                @Text = "Container";
+                @Alignment = Left;
+            }
+
+            Group {
+                FlexWeight: 1;
+            }
+        }
+    }
+
+    #Content {
+        LayoutMode: Full;
+        ItemGrid #ItemGrid {
+            SlotsPerRow: 9;
+        }
+    }
+}
