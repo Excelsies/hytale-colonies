@@ -214,7 +214,6 @@ public class WarehouseCommand extends CommandBase {
                 int localY = targetPos.getY();
                 int localZ = ChunkUtil.localCoordinate(targetPos.getZ());
 
-                @SuppressWarnings({"deprecation", "removal"})
                 var blockState = chunk.getState(localX, localY, localZ);
 
                 if (!(blockState instanceof ItemContainerBlockState containerState)) {
@@ -543,7 +542,6 @@ public class WarehouseCommand extends CommandBase {
                 int localY = targetPos.getY();
                 int localZ = ChunkUtil.localCoordinate(targetPos.getZ());
 
-                @SuppressWarnings({"deprecation", "removal"})
                 var blockState = chunk.getState(localX, localY, localZ);
 
                 if (!(blockState instanceof ItemContainerBlockState containerState) || containerState.getItemContainer() == null) {

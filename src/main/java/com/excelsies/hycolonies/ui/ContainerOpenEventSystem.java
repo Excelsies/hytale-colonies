@@ -4,7 +4,6 @@ import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.service.ColonyService;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
-import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
@@ -31,7 +30,7 @@ import java.util.UUID;
  * <p>Block events in Hytale must be handled via EntityEventSystem rather than
  * simple event registration.
  */
-@SuppressWarnings({"deprecation", "removal"})
+@SuppressWarnings({"removal"})
 public class ContainerOpenEventSystem extends EntityEventSystem<EntityStore, UseBlockEvent.Post> {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
