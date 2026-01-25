@@ -13,6 +13,7 @@ import com.excelsies.hycolonies.ecs.component.PathingComponent;
 import com.excelsies.hycolonies.ecs.system.CourierJobSystem;
 import com.excelsies.hycolonies.ecs.system.LogisticsTickSystem;
 import com.excelsies.hycolonies.ecs.system.MovementSystem;
+import com.excelsies.hycolonies.interaction.CreateColonyInteraction;
 import com.excelsies.hycolonies.logistics.event.InventoryChangeHandler;
 import com.excelsies.hycolonies.ecs.tag.CourierActiveTag;
 import com.excelsies.hycolonies.ecs.tag.IdleTag;
@@ -24,6 +25,7 @@ import com.excelsies.hycolonies.warehouse.WarehouseRegistry;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Interaction;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -57,12 +59,8 @@ public class HyColoniesPlugin extends JavaPlugin {
 
     // Singleton instance
     private static HyColoniesPlugin instance;
-
-    // Phase 1 Services
     private ColonyStorage colonyStorage;
     private ColonyService colonyService;
-
-    // Phase 2 Services
     private WarehouseRegistry warehouseRegistry;
     private InventoryCacheService inventoryCacheService;
     private LogisticsService logisticsService;
@@ -98,6 +96,9 @@ public class HyColoniesPlugin extends JavaPlugin {
         // Register ECS components and systems first
         registerECSComponents();
         registerECSSystems();
+        
+        // Register interactions
+        registerInteractions();
 
         // Initialize storage and services
         initializeServices();
@@ -128,7 +129,6 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerECSComponents() {
         LOGGER.atInfo().log("Registering ECS components...");
 
-        // Phase 1: CitizenComponent
         ComponentType<EntityStore, CitizenComponent> citizenComponentType =
                 getEntityStoreRegistry().registerComponent(
                         CitizenComponent.class,
@@ -138,7 +138,6 @@ public class HyColoniesPlugin extends JavaPlugin {
         CitizenComponent.setComponentType(citizenComponentType);
         LOGGER.atInfo().log("  - Registered CitizenComponent");
 
-        // Phase 2: JobComponent
         ComponentType<EntityStore, JobComponent> jobComponentType =
                 getEntityStoreRegistry().registerComponent(
                         JobComponent.class,
@@ -148,7 +147,6 @@ public class HyColoniesPlugin extends JavaPlugin {
         JobComponent.setComponentType(jobComponentType);
         LOGGER.atInfo().log("  - Registered JobComponent");
 
-        // Phase 2: PathingComponent
         ComponentType<EntityStore, PathingComponent> pathingComponentType =
                 getEntityStoreRegistry().registerComponent(
                         PathingComponent.class,
@@ -158,7 +156,6 @@ public class HyColoniesPlugin extends JavaPlugin {
         PathingComponent.setComponentType(pathingComponentType);
         LOGGER.atInfo().log("  - Registered PathingComponent");
 
-        // Phase 2: InventoryComponent
         ComponentType<EntityStore, InventoryComponent> inventoryComponentType =
                 getEntityStoreRegistry().registerComponent(
                         InventoryComponent.class,
@@ -168,7 +165,6 @@ public class HyColoniesPlugin extends JavaPlugin {
         InventoryComponent.setComponentType(inventoryComponentType);
         LOGGER.atInfo().log("  - Registered InventoryComponent");
 
-        // Phase 2: IdleTag (marker component)
         ComponentType<EntityStore, IdleTag> idleTagType =
                 getEntityStoreRegistry().registerComponent(
                         IdleTag.class,
@@ -178,7 +174,6 @@ public class HyColoniesPlugin extends JavaPlugin {
         IdleTag.setComponentType(idleTagType);
         LOGGER.atInfo().log("  - Registered IdleTag");
 
-        // Phase 2: CourierActiveTag (marker component)
         ComponentType<EntityStore, CourierActiveTag> courierActiveTagType =
                 getEntityStoreRegistry().registerComponent(
                         CourierActiveTag.class,
@@ -195,12 +190,20 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerECSSystems() {
         LOGGER.atInfo().log("Registering ECS systems...");
 
-        // Phase 2: MovementSystem (processes PathingComponent for directed movement)
         // Note: Idle wandering is handled by NPC role templates, not by an ECS system
         getEntityStoreRegistry().registerSystem(new MovementSystem());
         LOGGER.atInfo().log("  - Registered MovementSystem");
 
         // Note: LogisticsTickSystem and CourierJobSystem are registered after services are initialized
+    }
+    
+    /**
+     * Registers custom interactions.
+     */
+    private void registerInteractions() {
+        LOGGER.atInfo().log("Registering interactions...");
+
+        this.getCodecRegistry(Interaction.CODEC).register("CreateColonyInteraction", CreateColonyInteraction.class, CreateColonyInteraction.CODEC);
     }
 
     /**
@@ -212,12 +215,10 @@ public class HyColoniesPlugin extends JavaPlugin {
         // Get server run directory
         Path serverDirectory = Paths.get("").toAbsolutePath();
 
-        // Phase 1: Initialize storage and colony service
         colonyStorage = new ColonyStorage(serverDirectory);
         colonyService = new ColonyService(colonyStorage);
         colonyService.initialize();
 
-        // Phase 2: Initialize logistics services
         warehouseRegistry = new WarehouseRegistry();
         inventoryCacheService = new InventoryCacheService();
         logisticsService = new LogisticsService(inventoryCacheService, colonyService);
@@ -261,22 +262,18 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerCommands() {
         LOGGER.atInfo().log("Registering commands...");
 
-        // Phase 1: /colony command - create and manage colonies
         getCommandRegistry().registerCommand(
                 new ColonyCommand(colonyService)
         );
 
-        // Phase 1: /citizen command - manage citizens
         getCommandRegistry().registerCommand(
                 new CitizenCommand(colonyService)
         );
 
-        // Phase 2: /warehouse command - manage warehouses
         getCommandRegistry().registerCommand(
                 new WarehouseCommand(colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler)
         );
 
-        // Phase 2: /logistics command - debug logistics system
         getCommandRegistry().registerCommand(
                 new LogisticsCommand(logisticsService, inventoryCacheService, colonyService)
         );
@@ -314,7 +311,6 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void onShutdown() {
         LOGGER.atInfo().log("HyColonies shutting down...");
 
-        // Shutdown Phase 2 services first
         if (inventoryChangeHandler != null) {
             inventoryChangeHandler.stop();
         }
@@ -323,7 +319,6 @@ public class HyColoniesPlugin extends JavaPlugin {
             logisticsService.shutdown();
         }
 
-        // Shutdown Phase 1 services
         if (colonyService != null) {
             colonyService.shutdown();
         }
