@@ -1,0 +1,6 @@
+customUI.colonyCreation.title = New Colony
+customUI.colonyCreation.selectFaction = Select Faction
+customUI.colonyCreation.colonyName = Colony Name
+customUI.colonyCreation.namePlaceholder = Enter colony name...
+customUI.colonyCreation.create = Create
+customUI.colonyCreation.cancel = Cancel
