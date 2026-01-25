@@ -1,0 +1,15 @@
+{
+  "Cooldown": {
+    "Id": "Colony_Creation",
+    "Cooldown": 0.278,
+    "ClickBypass": true
+  },
+  "Settings": {
+    "Creative": {
+      "AllowSkipChainOnClick": true
+    }
+  },
+  "Interactions": [
+    "Create_Colony"
+  ]
+}

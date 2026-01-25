@@ -1,0 +1,78 @@
+{
+  "TranslationProperties": {
+    "Name": "colony_items.Colony_Banner.name"
+  },
+  "PlayerAnimationsId": "Block",
+  "Categories": [
+    "Furniture.Signs"
+  ],
+  "Set": "Colony",
+  "IconProperties": {
+    "Rotation": [
+      0,
+      0,
+      0
+    ],
+    "Scale": 0.26,
+    "Translation": [
+      0,
+      16.9
+    ]
+  },
+  "Interactions": {
+    "Primary": "Block_Primary",
+    "Secondary": "Colony_Banner_Use"
+  },
+  "BlockType": {
+    "BlockParticleSetId": "Wood",
+    "CustomModel": "Blocks/Decorative_Sets/Colony/Colony_Banner.blockymodel",
+    "CustomModelAnimation": "Blocks/Decorative_Sets/Human_Ruins/Banner_Swing.blockyanim",
+    "CustomModelTexture": [
+      {
+        "Texture": "Blocks/Decorative_Sets/Human_Ruins/Banner_Outlander.png",
+        "Weight": 1
+      }
+    ],
+    "DrawType": "Model",
+    "Flags": {},
+    "Gathering": {
+      "Soft": {
+        "IsWeaponBreakable": false
+      }
+    },
+    "Material": "Solid",
+    "Opacity": "Transparent",
+    "ParticleColor": "#4c4a31",
+    "VariantRotation": "Wall",
+    "BlockSoundSetId": "Cloth",
+    "Looping": true,
+    "HitboxType": "Banner",
+    "Support": {
+      "Horizontal": [
+        {
+          "FaceType": "Full"
+        }
+      ],
+      "Up": [
+        {
+          "FaceType": "Full"
+        }
+      ]
+    }
+  },
+  "Icon": "Icons/ItemsGenerated/Furniture_Outlander_Banner.png",
+  "ResourceTypes": [
+    {
+      "Id": "Fuel"
+    },
+    {
+      "Id": "Charcoal"
+    }
+  ],
+  "Tags": {
+    "Type": [
+      "Furniture"
+    ]
+  },
+  "ItemSoundSetId": "ISS_Items_Cloth"
+}
