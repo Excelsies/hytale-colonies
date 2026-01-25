@@ -150,7 +150,6 @@ public class InventoryChangeHandler {
      * @return true if event mode is available (API exists)
      */
     private boolean tryEnableEventMode() {
-        // The ItemContainer.registerChangeEvent() API is available in Hytale.
         // Individual container listeners are registered when warehouses are registered.
         try {
             // Verify the API is available by checking the method exists

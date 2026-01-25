@@ -14,8 +14,6 @@ import java.util.UUID;
  * This component is attached to NPC entities that belong to a colony.
  */
 public class CitizenComponent implements Component<EntityStore> {
-
-    // Static component type - set during registration
     private static ComponentType<EntityStore, CitizenComponent> COMPONENT_TYPE;
 
     // Codec for JSON serialization

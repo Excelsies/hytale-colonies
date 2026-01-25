@@ -243,7 +243,6 @@ public class WarehouseCommand extends CommandBase {
                 inventoryCache.registerWarehouse(colonyId, targetPos);
 
                 // Register event listener for this container (event-driven cache updates)
-                // This is now guaranteed to succeed since we validated the container above
                 changeHandler.registerContainerListener(colonyId, targetPos, world);
 
                 ctx.sendMessage(Message.raw("Registered warehouse at (" +
