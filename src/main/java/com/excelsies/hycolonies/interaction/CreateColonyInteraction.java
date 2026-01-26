@@ -4,50 +4,117 @@ import com.excelsies.hycolonies.HyColoniesPlugin;
 import com.excelsies.hycolonies.colony.service.ColonyService;
 import com.excelsies.hycolonies.ui.ColonyCreationPage;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
+import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3i;
+import com.hypixel.hytale.protocol.BlockPosition;
+import com.hypixel.hytale.protocol.Interaction;
+import com.hypixel.hytale.protocol.InteractionSyncData;
 import com.hypixel.hytale.protocol.InteractionType;
+import com.hypixel.hytale.protocol.PlaceBlockInteraction;
+import com.hypixel.hytale.protocol.WaitForDataFrom;
 import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.inventory.ItemStack;
+import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.CooldownHandler;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.SimpleInteraction;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import org.checkerframework.checker.nullness.compatqual.NonNullDecl;
 
+/**
+ * Custom interaction for creating colonies.
+ *
+ * Opens the ColonyCreationPage UI when player right-clicks with Colony Banner.
+ * Block placement is handled by the UI page after colony creation.
+ */
 public class CreateColonyInteraction extends SimpleInteraction {
 
-    public static final BuilderCodec<CreateColonyInteraction> CODEC = BuilderCodec.builder(CreateColonyInteraction.class, CreateColonyInteraction::new).build();
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+
+    public static final BuilderCodec<CreateColonyInteraction> CODEC =
+            BuilderCodec.builder(CreateColonyInteraction.class, CreateColonyInteraction::new).build();
 
     @Override
-    public void handle(@NonNullDecl Ref<EntityStore> ref, boolean firstRun, float time, @NonNullDecl InteractionType type, @NonNullDecl InteractionContext interactionContext) {
-        super.handle(ref, firstRun, time, type, interactionContext);
-        
-        var store = ref.getStore();
-        if (store == null) return;
-        
-        // ref is the entity performing the interaction (the player)
-        var player = store.getComponent(ref, Player.getComponentType());
-        PlayerRef playerRefComponent = store.getComponent(ref, PlayerRef.getComponentType());
-        TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-        
-        if (player == null || playerRefComponent == null || transform == null) return;
+    public WaitForDataFrom getWaitForDataFrom() {
+        // Request client data like PlaceBlockInteraction does
+        return WaitForDataFrom.Client;
+    }
+
+    @Override
+    protected Interaction generatePacket() {
+        // Return PlaceBlockInteraction protocol packet so client sends block position data
+        return new PlaceBlockInteraction();
+    }
+
+    @Override
+    public boolean needsRemoteSync() {
+        return true;
+    }
+
+    @Override
+    protected void tick0(boolean firstRun, float time, InteractionType type,
+                         InteractionContext context, CooldownHandler cooldownHandler) {
+        // Only run on first tick
+        if (!firstRun) {
+            return;
+        }
+
+        // Get client state which contains the placement position (already offset by face)
+        InteractionSyncData clientState = context.getClientState();
+        if (clientState == null || clientState.blockPosition == null) {
+            LOGGER.atWarning().log("CreateColonyInteraction: No client state or block position");
+            return;
+        }
+
+        Ref<EntityStore> entityRef = context.getEntity();
+        CommandBuffer<EntityStore> commandBuffer = context.getCommandBuffer();
+        if (commandBuffer == null) {
+            return;
+        }
+
+        Player player = commandBuffer.getComponent(entityRef, Player.getComponentType());
+        PlayerRef playerRef = commandBuffer.getComponent(entityRef, PlayerRef.getComponentType());
+
+        if (player == null || playerRef == null) {
+            return;
+        }
+
+        // Use blockPosition from client state - this is the placement position (already offset)
+        BlockPosition placementBlock = clientState.blockPosition;
+        Vector3i placementPos = new Vector3i(placementBlock.x, placementBlock.y, placementBlock.z);
+
+        LOGGER.atInfo().log("CreateColonyInteraction: Placement position from client: x=%d y=%d z=%d",
+                placementPos.getX(), placementPos.getY(), placementPos.getZ());
+
+        // Get held item info for block placement
+        ItemStack heldItem = context.getHeldItem();
+        ItemContainer heldItemContainer = context.getHeldItemContainer();
+        byte heldItemSlot = context.getHeldItemSlot();
+
+        if (heldItem == null || heldItemContainer == null) {
+            return;
+        }
 
         ColonyService colonyService = HyColoniesPlugin.get().getColonyService();
-        
-        // Try to get target position from context, fall back to player position
-        // TODO: Use interactionContext.getTargetBlock() if available
-        Vector3i targetPos = transform.getPosition().toVector3i();
-        
+
+        // Create and open the UI page
         ColonyCreationPage page = new ColonyCreationPage(
-                playerRefComponent,
+                playerRef,
                 colonyService,
-                targetPos,
-                player.getWorld()
+                placementPos,
+                player.getWorld(),
+                heldItem,
+                heldItemContainer,
+                heldItemSlot
         );
 
         if (player.getPageManager() != null) {
-            player.getPageManager().openCustomPage(ref, store, page);
+            var store = entityRef.getStore();
+            if (store != null) {
+                player.getPageManager().openCustomPage(entityRef, store, page);
+            }
         }
     }
 }
