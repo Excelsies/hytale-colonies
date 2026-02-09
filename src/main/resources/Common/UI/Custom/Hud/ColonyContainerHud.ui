@@ -1,0 +1,73 @@
+// Colony Container Warehouse Status HUD
+// Displays registration status when opening a container inside a colony
+// Two layout variants: SmallLayout (1-2 rows) and LargeLayout (3+ rows)
+$C = "../Common.ui";
+
+Group {
+    Anchor: (Full: 0);
+
+    // Small container layout (single chest, barrels, etc.)
+    Group #SmallLayout {
+        LayoutMode: MiddleCenter;
+        Anchor: (Full: 0);
+        Padding: (Right: 500, Bottom: 400);
+
+        $C.@Container #SmallPanel {
+            Anchor: (Width: 220, Height: 70);
+
+            #Title {
+                $C.@Title {
+                    @Text = %colonyUI.customUI.warehouse.title;
+                }
+            }
+
+            #Content {
+                LayoutMode: Top;
+                Padding: (Top: 4);
+
+                Label #SmallStatusLabel {
+                    Text: "Not registered";
+                    Style: (
+                        ...$C.@DefaultLabelStyle,
+                        FontSize: 16,
+                        TextColor: #88aa88,
+                        HorizontalAlignment: Center
+                    );
+                }
+            }
+        }
+    }
+
+    // Large container layout (double chest, etc.)
+    Group #LargeLayout {
+        Visible: false;
+        LayoutMode: MiddleCenter;
+        Anchor: (Full: 0);
+        Padding: (Right: 500, Bottom: 700);
+
+        $C.@Container #LargePanel {
+            Anchor: (Width: 220, Height: 70);
+
+            #Title {
+                $C.@Title {
+                    @Text = %colonyUI.customUI.warehouse.title;
+                }
+            }
+
+            #Content {
+                LayoutMode: Top;
+                Padding: (Top: 4);
+
+                Label #LargeStatusLabel {
+                    Text: "Not registered";
+                    Style: (
+                        ...$C.@DefaultLabelStyle,
+                        FontSize: 16,
+                        TextColor: #88aa88,
+                        HorizontalAlignment: Center
+                    );
+                }
+            }
+        }
+    }
+}

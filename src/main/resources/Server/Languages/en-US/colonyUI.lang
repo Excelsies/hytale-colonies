@@ -4,3 +4,11 @@ customUI.colonyCreation.colonyName = Colony Name
 customUI.colonyCreation.namePlaceholder = Enter colony name...
 customUI.colonyCreation.create = Create
 customUI.colonyCreation.cancel = Cancel
+
+customUI.warehouse.title = Colony Warehouse
+
+customUI.warehouse.prompt.title = Colony Warehouse
+customUI.warehouse.prompt.description = Register this container as a colony warehouse?
+customUI.warehouse.prompt.info = Colony citizens will be able to store and retrieve items from registered warehouses.
+customUI.warehouse.prompt.register = Register
+customUI.warehouse.prompt.cancel = Cancel

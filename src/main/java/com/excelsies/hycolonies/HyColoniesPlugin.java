@@ -19,7 +19,9 @@ import com.excelsies.hycolonies.ecs.tag.CourierActiveTag;
 import com.excelsies.hycolonies.ecs.tag.IdleTag;
 import com.excelsies.hycolonies.logistics.service.InventoryCacheService;
 import com.excelsies.hycolonies.logistics.service.LogisticsService;
+import com.excelsies.hycolonies.ui.ContainerBreakEventSystem;
 import com.excelsies.hycolonies.ui.ContainerOpenEventSystem;
+import com.excelsies.hycolonies.ui.ContainerPlaceEventSystem;
 import com.excelsies.hycolonies.ui.PlayerContainerTracker;
 import com.excelsies.hycolonies.warehouse.WarehouseRegistry;
 import com.hypixel.hytale.component.ComponentType;
@@ -68,6 +70,8 @@ public class HyColoniesPlugin extends JavaPlugin {
 
     // UI Handlers
     private ContainerOpenEventSystem containerOpenEventSystem;
+    private ContainerPlaceEventSystem containerPlaceEventSystem;
+    private ContainerBreakEventSystem containerBreakEventSystem;
     private PlayerContainerTracker playerContainerTracker;
 
     /**
@@ -118,7 +122,7 @@ public class HyColoniesPlugin extends JavaPlugin {
         LOGGER.atInfo().log("HyColonies setup complete!");
         LOGGER.atInfo().log("  - Registered 6 ECS components and 3 systems");
         LOGGER.atInfo().log("  - Registered 4 commands (/colony, /citizen, /warehouse, /logistics)");
-        LOGGER.atInfo().log("  - Registered container open event handler for warehouse HUD overlay");
+        LOGGER.atInfo().log("  - Registered container event handlers (place prompt, open HUD, break cleanup)");
         LOGGER.atInfo().log("  - Loaded " + colonyService.getColonyCount() + " colonies from disk");
         LOGGER.atInfo().log("  - Logistics system initialized with inventory scanning");
     }
@@ -285,17 +289,24 @@ public class HyColoniesPlugin extends JavaPlugin {
     private void registerEventHandlers() {
         LOGGER.atInfo().log("Registering event handlers...");
 
-        // Container open event system - shows warehouse registration HUD overlay
-        // Block events must be handled via EntityEventSystem, not simple event registration
-        containerOpenEventSystem = new ContainerOpenEventSystem(
-                colonyService,
-                playerContainerTracker,
-                warehouseRegistry,
-                inventoryCacheService,
-                inventoryChangeHandler
-        );
+        // Container open event - shows warehouse status HUD overlay
+        containerOpenEventSystem = new ContainerOpenEventSystem(colonyService);
         getEntityStoreRegistry().registerSystem(containerOpenEventSystem);
         LOGGER.atInfo().log("  - Registered ContainerOpenEventSystem for UseBlockEvent.Post");
+
+        // Container place event - shows warehouse registration prompt
+        containerPlaceEventSystem = new ContainerPlaceEventSystem(
+                colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler
+        );
+        getEntityStoreRegistry().registerSystem(containerPlaceEventSystem);
+        LOGGER.atInfo().log("  - Registered ContainerPlaceEventSystem for PlaceBlockEvent");
+
+        // Container break event - auto-unregisters warehouses
+        containerBreakEventSystem = new ContainerBreakEventSystem(
+                colonyService, warehouseRegistry, inventoryCacheService, inventoryChangeHandler
+        );
+        getEntityStoreRegistry().registerSystem(containerBreakEventSystem);
+        LOGGER.atInfo().log("  - Registered ContainerBreakEventSystem for BreakBlockEvent");
     }
 
     /**

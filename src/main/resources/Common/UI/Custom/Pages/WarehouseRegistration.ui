@@ -1,0 +1,78 @@
+$C = "../Common.ui";
+$Sounds = "../Sounds.ui";
+
+$C.@PageOverlay {
+    LayoutMode: Middle;
+
+    $C.@DecoratedContainer {
+        Anchor: (Width: 380);
+
+        #Title {
+            $C.@Title {
+                @Text = %colonyUI.customUI.warehouse.prompt.title;
+            }
+        }
+
+        #Content {
+            LayoutMode: Top;
+            Padding: (Full: 16);
+
+            // Description
+            Label {
+                Text: %colonyUI.customUI.warehouse.prompt.description;
+                Anchor: (Bottom: 8);
+                Style: (
+                    ...$C.@DefaultLabelStyle,
+                    FontSize: 16,
+                    HorizontalAlignment: Center,
+                    Wrap: true
+                );
+            }
+
+            // Colony name
+            Label #ColonyName {
+                Text: "";
+                Anchor: (Bottom: 12);
+                Style: (
+                    FontSize: 18,
+                    TextColor: #dee2ef,
+                    RenderBold: true,
+                    HorizontalAlignment: Center
+                );
+            }
+
+            // Info text
+            Label {
+                Text: %colonyUI.customUI.warehouse.prompt.info;
+                Anchor: (Bottom: 16);
+                Style: (
+                    FontSize: 13,
+                    TextColor: #88aa88,
+                    HorizontalAlignment: Center,
+                    Wrap: true
+                );
+            }
+
+            // Buttons
+            Group #ButtonSection {
+                LayoutMode: Center;
+
+                $C.@TextButton #RegisterButton {
+                    @Sounds = $Sounds.@SaveSettings;
+                    @Anchor = (Right: 4, MinWidth: 140);
+                    Text: %colonyUI.customUI.warehouse.prompt.register;
+                    FlexWeight: 1;
+                }
+
+                $C.@SecondaryTextButton #CancelButton {
+                    @Sounds = $Sounds.@ButtonsCancel;
+                    @Anchor = (Left: 4, MinWidth: 140);
+                    Text: %colonyUI.customUI.warehouse.prompt.cancel;
+                    FlexWeight: 1;
+                }
+            }
+        }
+    }
+}
+
+$C.@BackButton {}
