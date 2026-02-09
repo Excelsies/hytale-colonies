@@ -232,7 +232,7 @@ public class HyColoniesPlugin extends JavaPlugin {
         LOGGER.atInfo().log("  - Registered LogisticsTickSystem");
 
         // Register CourierJobSystem now that logisticsService is ready
-        getEntityStoreRegistry().registerSystem(new CourierJobSystem(logisticsService));
+        getEntityStoreRegistry().registerSystem(new CourierJobSystem(logisticsService, inventoryCacheService));
         LOGGER.atInfo().log("  - Registered CourierJobSystem");
 
         // Initialize and start InventoryChangeHandler
