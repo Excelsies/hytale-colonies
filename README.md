@@ -64,4 +64,3 @@ You **must** authenticate your local server to connect to it:
 ## 📚 Documentation
 
 *   [Hytale Modding Documentation](https://britakee-studios.gitbook.io/hytale-modding-documentation)
-*   [Developer Guidance (CLAUDE.md)](CLAUDE.md)

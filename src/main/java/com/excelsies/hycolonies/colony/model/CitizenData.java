@@ -11,6 +11,7 @@ public class CitizenData {
     private UUID citizenId;
     private String name;
     private String npcSkin;
+    private String skinCosmetics; // JSON string of cosmetic configuration for Avatar citizens
     private double lastX;
     private double lastY;
     private double lastZ;
@@ -23,6 +24,7 @@ public class CitizenData {
         this.citizenId = UUID.randomUUID();
         this.name = "Citizen";
         this.npcSkin = "Kweebec_Razorleaf";
+        this.skinCosmetics = null;
         this.lastX = 0;
         this.lastY = 0;
         this.lastZ = 0;
@@ -33,9 +35,17 @@ public class CitizenData {
      * Full constructor for creating citizen data.
      */
     public CitizenData(UUID citizenId, String name, String npcSkin, double x, double y, double z) {
+        this(citizenId, name, npcSkin, null, x, y, z);
+    }
+
+    /**
+     * Full constructor with cosmetics.
+     */
+    public CitizenData(UUID citizenId, String name, String npcSkin, String skinCosmetics, double x, double y, double z) {
         this.citizenId = citizenId;
         this.name = name;
         this.npcSkin = npcSkin;
+        this.skinCosmetics = skinCosmetics;
         this.lastX = x;
         this.lastY = y;
         this.lastZ = z;
@@ -53,6 +63,10 @@ public class CitizenData {
 
     public String getNpcSkin() {
         return npcSkin;
+    }
+
+    public String getSkinCosmetics() {
+        return skinCosmetics;
     }
 
     public double getLastX() {
@@ -78,6 +92,10 @@ public class CitizenData {
 
     public void setNpcSkin(String npcSkin) {
         this.npcSkin = npcSkin;
+    }
+
+    public void setSkinCosmetics(String skinCosmetics) {
+        this.skinCosmetics = skinCosmetics;
     }
 
     /**

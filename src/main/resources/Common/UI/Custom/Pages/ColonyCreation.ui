@@ -1,0 +1,203 @@
+$C = "../Common.ui";
+$Sounds = "../Sounds.ui";
+
+$C.@PageOverlay {
+    LayoutMode: Middle;
+
+    $C.@DecoratedContainer {
+        Anchor: (Width: 420);
+
+        #Title {
+            $C.@Title {
+                @Text = %colonyUI.customUI.colonyCreation.title;
+            }
+        }
+
+        #Content {
+            LayoutMode: Top;
+            Padding: (Full: 16);
+
+            // Faction Selection Section
+            Group #FactionSection {
+                LayoutMode: Top;
+                Anchor: (Bottom: 16);
+                Background: (TexturePath: "../Common/ContainerPanelPatch.png", Border: 4);
+                Padding: (Full: 12);
+
+                Label {
+                    Text: %colonyUI.customUI.colonyCreation.selectFaction;
+                    Anchor: (Bottom: 10);
+                    Style: (
+                        ...$C.@DefaultLabelStyle,
+                        RenderBold: true,
+                        RenderUppercase: true,
+                        HorizontalAlignment: Center
+                    );
+                }
+
+                // Faction carousel: left arrow, content, right arrow
+                Group #FactionCarousel {
+                    LayoutMode: Left;
+                    Anchor: (Height: 150);
+
+                    // Left Arrow Button
+                    $C.@SecondaryTextButton #PrevFaction {
+                        @Anchor = (Width: 40, Height: 40, Top: 40);
+                        Text: "<";
+                    }
+
+                    // Center content: faction image + name
+                    Group #FactionContent {
+                        FlexWeight: 1;
+                        LayoutMode: Top;
+                        Padding: (Horizontal: 8);
+
+                        // Faction Images - one per faction, toggle visibility
+                        Group #FactionImageContainer {
+                            Anchor: (Height: 110);
+                            LayoutMode: Center;
+
+                            Group #ImgAvatar {
+                                Anchor: (Width: 80, Height: 100);
+                                Background: (TexturePath: "../Common/Icons/Factions/Avatar.png");
+                                Visible: true;
+                                }
+                            Group #ImgKweebec {
+                                Anchor: (Width: 70, Height: 110);
+                                Background: (TexturePath: "../Common/Icons/Factions/Kweebec.png");
+                                Visible: false;
+                                }
+                            Group #ImgFeran {
+                                Anchor: (Width: 80, Height: 100);
+                                Background: (TexturePath: "../Common/Icons/Factions/Feran.png");
+                                Visible: false;
+                                }
+                            Group #ImgKlops {
+                                Anchor: (Width: 90, Height: 100);
+                                Background: (TexturePath: "../Common/Icons/Factions/Klops.png");
+                                Visible: false;
+                                }
+                            Group #ImgSlothian {
+                                Anchor: (Width: 75, Height: 115);
+                                Background: (TexturePath: "../Common/Icons/Factions/Slothian.png");
+                                Visible: false;
+                                }
+                            Group #ImgOutlander {
+                                Anchor: (Width: 55, Height: 115);
+                                Background: (TexturePath: "../Common/Icons/Factions/Outlander.png");
+                                Visible: false;
+                                }
+                            Group #ImgTrork {
+                                Anchor: (Width: 90, Height: 110);
+                                Background: (TexturePath: "../Common/Icons/Factions/Trork.png");
+                                Visible: false;
+                                }
+                            Group #ImgGoblin {
+                                Anchor: (Width: 75, Height: 100);
+                                Background: (TexturePath: "../Common/Icons/Factions/Goblin.png");
+                                Visible: false;
+                                }
+                            Group #ImgBramblekin {
+                                Anchor: (Width: 75, Height: 105);
+                                Background: (TexturePath: "../Common/Icons/Factions/Bramblekin.png");
+                                Visible: false;
+                                }
+                            Group #ImgSaurian {
+                                Anchor: (Width: 95, Height: 110);
+                                Background: (TexturePath: "../Common/Icons/Factions/Saurian.png");
+                                Visible: false;
+                            }
+                            Group #ImgTuluk {
+                                Anchor: (Width: 105, Height: 110);
+                                Background: (TexturePath: "../Common/Icons/Factions/Tuluk.png");
+                                Visible: false;
+                            }
+                        }
+
+                        // Faction Name
+                        Label #FactionName {
+                            Text: "Avatar";
+                            Style: (
+                                FontSize: 24,
+                                TextColor: #dee2ef,
+                                RenderBold: true,
+                                HorizontalAlignment: Center
+                            );
+                        }
+                    }
+
+                    // Right Arrow Button
+                    $C.@SecondaryTextButton #NextFaction {
+                        @Anchor = (Width: 40, Height: 40, Top: 40);
+                        Text: ">";
+                    }
+                }
+            }
+
+            // Separator
+            Group {
+                Anchor: (Vertical: 8, Height: 1);
+                Background: #5e512c(0.4);
+            }
+
+            // Colony Name Input Section
+            Group #NameSection {
+                LayoutMode: Top;
+                Anchor: (Bottom: 16, Top: 8);
+
+                Label {
+                    Text: %colonyUI.customUI.colonyCreation.colonyName;
+                    Anchor: (Bottom: 8);
+                    Style: (
+                        ...$C.@DefaultLabelStyle,
+                        RenderBold: true,
+                        RenderUppercase: true
+                    );
+                }
+
+                $C.@TextField #NameInput {
+                    Style: (
+                        $C.@DefaultInputFieldStyle
+                    );
+                    Anchor: (Height: 44);
+                    MaxLength: 32;
+                    PlaceholderText: %colonyUI.customUI.colonyCreation.namePlaceholder;
+                }
+            }
+
+            // Error Message (Empty Text by default)
+            Label #ErrorLabel {
+                Anchor: (Bottom: 8);
+                Text: "";
+                Style: (
+                    FontSize: 14,
+                    TextColor: #ff5555,
+                    HorizontalAlignment: Center,
+                    Wrap: true
+                );
+            }
+
+            // Action Buttons
+            Group #ButtonSection {
+                LayoutMode: Center;
+                Anchor: (Top: 8);
+
+                $C.@TextButton #CreateButton {
+                    @Sounds = $Sounds.@SaveSettings;
+                    @Anchor = (Right: 4, MinWidth: 140);
+                    Text: %colonyUI.customUI.colonyCreation.create;
+                    FlexWeight: 1;
+                }
+
+                $C.@SecondaryTextButton #CancelButton {
+                    @Sounds = $Sounds.@ButtonsCancel;
+                    @Anchor = (Left: 4, MinWidth: 140);
+                    Text: %colonyUI.customUI.colonyCreation.cancel;
+                    FlexWeight: 1;
+                }
+            }
+        }
+    }
+}
+
+$C.@BackButton {}

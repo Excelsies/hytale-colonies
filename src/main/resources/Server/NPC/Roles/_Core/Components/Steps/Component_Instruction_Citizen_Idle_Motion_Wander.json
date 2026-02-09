@@ -1,0 +1,86 @@
+{
+  "$Comment": "HyColonies citizen wander behavior - stays within colony bounds (WanderRadius)",
+  "Class": "Instruction",
+  "Interface": "Hytale.Instruction.Intelligent.Idle.Motion.CitizenWander",
+  "Parameters": {
+    "WanderRadius": {
+      "Value": 15,
+      "Description": "Maximum wander distance from spawn point (colony center)"
+    },
+    "MotionWanderTimer": {
+      "Value": [ 3, 6 ],
+      "Description": "How long the citizen will wander before stopping"
+    },
+    "MotionIdleTimer": {
+      "Value": [ 2, 5 ],
+      "Description": "How long the citizen will stand idle"
+    },
+    "WanderSpeed": {
+      "Value": 0.4,
+      "Description": "Relative walking speed while wandering (0-1)"
+    }
+  },
+  "Content": {
+    "Continue": true,
+    "Sensor": {
+      "Type": "Any"
+    },
+    "Instructions": [
+      {
+        "$Comment": "Spread out from nearby citizens to avoid clustering",
+        "Reference": "Component_Instruction_Spread_Out",
+        "Modify": {
+          "Range": 2,
+          "RelativeSpeed": { "Compute": "WanderSpeed" }
+        }
+      },
+      {
+        "$Comment": "Return to colony if wandered too far (leash behavior)",
+        "Sensor": {
+          "Type": "Leash",
+          "Range": { "Compute": "WanderRadius" }
+        },
+        "BodyMotion": {
+          "Type": "Seek",
+          "StopDistance": 1,
+          "SlowDownDistance": 3,
+          "RelativeSpeed": { "Compute": "WanderSpeed" }
+        }
+      },
+      {
+        "$Comment": "Main wander loop within colony bounds",
+        "Sensor": {
+          "Type": "Any"
+        },
+        "BodyMotion": {
+          "Type": "Sequence",
+          "Looped": true,
+          "Motions": [
+            {
+              "$Comment": "Wander within circle around spawn point",
+              "Type": "Timer",
+              "Time": { "Compute": "MotionWanderTimer" },
+              "Motion": {
+                "Type": "WanderInCircle",
+                "Radius": { "Compute": "WanderRadius" },
+                "MaxHeadingChange": 45,
+                "RelativeSpeed": { "Compute": "WanderSpeed" },
+                "MinWalkTime": 1,
+                "RelaxedMoveConstraints": false
+              }
+            },
+            {
+              "$Comment": "Idle period - citizen stands still",
+              "Type": "Timer",
+              "Time": { "Compute": "MotionIdleTimer" },
+              "Motion": {
+                "Type": "Nothing"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Type": "Component"
+}

@@ -425,7 +425,12 @@
                       ]
                     },
                     {
-                      "Reference": "Component_Instruction_Intelligent_Idle_Motion_Wander"
+                      "Reference": "Component_Instruction_Citizen_Idle_Motion_Wander",
+                      "Modify": {
+                        "WanderRadius": {
+                          "Compute": "WanderRadius"
+                        }
+                      }
                     }
                   ]
                 }

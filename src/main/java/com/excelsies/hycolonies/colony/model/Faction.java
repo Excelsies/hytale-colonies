@@ -12,12 +12,12 @@ import java.util.Random;
 public enum Faction {
     AVATAR("Avatar", "Avatar_Citizen"),
     KWEEBEC("Kweebec",
-            "Kweebec_Elder", "Kweebec_Merchant", "Kweebec_Razorleaf", "Kweebec_Rootling",
-            "Kweebec_Sapling_Orange", "Kweebec_Sapling_Pink", "Kweebec_Seedling", "Kweebec_Sproutling"
+            "Kweebec_Citizen_Elder", "Kweebec_Citizen_Razorleaf", "Kweebec_Citizen_Rootling", "Kweebec_Citizen_Sapling_Orange",
+            "Kweebec_Citizen_Sapling_Pink", "Kweebec_Citizen_Seedling", "Kweebec_Citizen_Sproutling"
     ),
     FERAN(
             "Feran",
-            "Feran_Burrower", "Feran_Civilian", "Feran_Cub", "Feran_Longtooth", "Feran_Sharptooth", "Feran_Windwalker"
+            "Feran_Citizen_Burrower", "Feran_Citizen_Civilian", "Feran_Citizen_Cub", "Feran_Citizen_Longtooth", "Feran_Citizen_Sharptooth", "Feran_Citizen_Windwalker"
     ),
     KLOPS(
             "Klops",

@@ -3,13 +3,20 @@ package com.excelsies.hycolonies.command;
 import com.excelsies.hycolonies.colony.model.CitizenData;
 import com.excelsies.hycolonies.colony.model.ColonyData;
 import com.excelsies.hycolonies.colony.service.ColonyService;
+import com.excelsies.hycolonies.colony.service.SkinGenerator;
 import com.excelsies.hycolonies.ecs.component.CitizenComponent;
+import com.excelsies.hycolonies.ecs.component.JobComponent;
+import com.excelsies.hycolonies.ecs.component.JobType;
+import com.excelsies.hycolonies.ecs.tag.IdleTag;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.protocol.GameMode;
+import com.hypixel.hytale.protocol.PlayerSkin;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
@@ -18,6 +25,7 @@ import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.npc.INonPlayerCharacter;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -25,7 +33,9 @@ import com.hypixel.hytale.server.npc.NPCPlugin;
 import it.unimi.dsi.fastutil.Pair;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -40,6 +50,7 @@ import java.util.UUID;
 public class CitizenCommand extends CommandBase {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    private static final Gson GSON = new Gson();
 
     public CitizenCommand(ColonyService colonyService) {
         super("citizen", "Manage citizens in colonies");
@@ -49,6 +60,7 @@ public class CitizenCommand extends CommandBase {
         addSubCommand(new ListSubCommand(colonyService));
         addSubCommand(new SpawnSubCommand(colonyService));
         addSubCommand(new RemoveSubCommand(colonyService));
+        addSubCommand(new JobSubCommand(colonyService));
     }
 
     @Override
@@ -58,8 +70,13 @@ public class CitizenCommand extends CommandBase {
         ctx.sendMessage(Message.raw("  /citizen list [colony] - List citizens"));
         ctx.sendMessage(Message.raw("  /citizen spawn [colony] [citizen] [skin] - Spawn existing citizen"));
         ctx.sendMessage(Message.raw("  /citizen remove [colony] [citizen] - Remove a citizen"));
+        ctx.sendMessage(Message.raw("  /citizen job [colony] [citizen] [job] - Assign a job to a citizen"));
         ctx.sendMessage(Message.raw("Note: Colony and citizen can be specified by name or UUID."));
         ctx.sendMessage(Message.raw("      Skin is optional; uses random faction skin if not specified."));
+        ctx.sendMessage(Message.raw("      Jobs: " + String.join(", ",
+                java.util.Arrays.stream(JobType.values())
+                        .map(j -> j.name().toLowerCase())
+                        .toArray(String[]::new))));
     }
 
     /**
@@ -109,13 +126,16 @@ public class CitizenCommand extends CommandBase {
      * Spawns a citizen NPC on the world thread.
      * Must be called from within world.execute().
      *
-     * @param store    The entity store
-     * @param colonyId The colony UUID
-     * @param citizen  The citizen data
-     * @param npcSkin  The specific NPC skin to spawn
+     * @param store         The entity store
+     * @param world         The world to spawn in (for entity tracking)
+     * @param colonyService The colony service for entity registration
+     * @param colonyId      The colony UUID
+     * @param citizen       The citizen data
+     * @param npcSkin       The specific NPC skin to spawn
      * @return true if spawn was successful
      */
-    private static boolean spawnCitizenNPC(Store<EntityStore> store, UUID colonyId, CitizenData citizen, String npcSkin) {
+    private static boolean spawnCitizenNPC(Store<EntityStore> store, World world, ColonyService colonyService,
+                                            UUID colonyId, CitizenData citizen, String npcSkin) {
         NPCPlugin npcPlugin = NPCPlugin.get();
         if (npcPlugin == null) {
             LOGGER.atWarning().log("NPCPlugin not available");
@@ -144,10 +164,78 @@ public class CitizenCommand extends CommandBase {
                                 colonyId,
                                 citizen.getCitizenId(),
                                 citizen.getName(),
-                                citizen.getNpcSkin()
+                                citizen.getNpcSkin(),
+                                citizen.getSkinCosmetics()
                         );
                         store.addComponent(entityRef, CitizenComponent.getComponentType(), citizenComponent);
                     }
+
+                    // Apply cosmetics if available
+                    if (citizen.getSkinCosmetics() != null && !citizen.getSkinCosmetics().isEmpty()) {
+                        try {
+                            Type type = new TypeToken<Map<String, String>>(){}.getType();
+                            Map<String, String> cosmetics = GSON.fromJson(citizen.getSkinCosmetics(), type);
+
+                            if (cosmetics != null && PlayerSkinComponent.getComponentType() != null) {
+                                PlayerSkin skin = new PlayerSkin();
+                                
+                                // Initialize ALL fields to safe defaults using constants
+                                skin.bodyCharacteristic = SkinGenerator.DEFAULT_BODY;
+                                skin.underwear = SkinGenerator.DEFAULT_UNDERWEAR;
+                                skin.face = SkinGenerator.DEFAULT_FACE;
+                                skin.eyes = SkinGenerator.DEFAULT_EYES;
+                                skin.eyebrows = SkinGenerator.DEFAULT_EYEBROWS;
+                                skin.mouth = SkinGenerator.DEFAULT_MOUTH;
+                                skin.ears = SkinGenerator.DEFAULT_EARS;
+                                skin.haircut = SkinGenerator.DEFAULT_HAIRCUT;
+                                skin.pants = SkinGenerator.DEFAULT_PANTS;
+                                skin.overtop = SkinGenerator.DEFAULT_OVERTOP;
+                                skin.shoes = SkinGenerator.DEFAULT_SHOES;
+                                
+                                skin.undertop = "";
+                                skin.overpants = "";
+                                skin.cape = "";
+                                skin.headAccessory = "";
+                                skin.faceAccessory = "";
+                                skin.earAccessory = "";
+                                skin.facialHair = "";
+                                skin.gloves = "";
+                                skin.skinFeature = "";
+                                
+                                // Override with generated cosmetics if present and valid
+                                if (cosmetics.containsKey(SkinGenerator.KEY_BODY) && cosmetics.get(SkinGenerator.KEY_BODY) != null) skin.bodyCharacteristic = cosmetics.get(SkinGenerator.KEY_BODY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_UNDERWEAR) && cosmetics.get(SkinGenerator.KEY_UNDERWEAR) != null) skin.underwear = cosmetics.get(SkinGenerator.KEY_UNDERWEAR);
+                                
+                                if (cosmetics.containsKey(SkinGenerator.KEY_HAIR) && cosmetics.get(SkinGenerator.KEY_HAIR) != null) skin.haircut = cosmetics.get(SkinGenerator.KEY_HAIR);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_FACE) && cosmetics.get(SkinGenerator.KEY_FACE) != null) skin.face = cosmetics.get(SkinGenerator.KEY_FACE);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EYES) && cosmetics.get(SkinGenerator.KEY_EYES) != null) skin.eyes = cosmetics.get(SkinGenerator.KEY_EYES);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EYEBROWS) && cosmetics.get(SkinGenerator.KEY_EYEBROWS) != null) skin.eyebrows = cosmetics.get(SkinGenerator.KEY_EYEBROWS);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_MOUTH) && cosmetics.get(SkinGenerator.KEY_MOUTH) != null) skin.mouth = cosmetics.get(SkinGenerator.KEY_MOUTH);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EARS) && cosmetics.get(SkinGenerator.KEY_EARS) != null) skin.ears = cosmetics.get(SkinGenerator.KEY_EARS);
+                                
+                                if (cosmetics.containsKey(SkinGenerator.KEY_PANTS) && cosmetics.get(SkinGenerator.KEY_PANTS) != null) skin.pants = cosmetics.get(SkinGenerator.KEY_PANTS);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_OVERTOP) && cosmetics.get(SkinGenerator.KEY_OVERTOP) != null) skin.overtop = cosmetics.get(SkinGenerator.KEY_OVERTOP);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_UNDERTOP) && cosmetics.get(SkinGenerator.KEY_UNDERTOP) != null) skin.undertop = cosmetics.get(SkinGenerator.KEY_UNDERTOP);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_SHOES) && cosmetics.get(SkinGenerator.KEY_SHOES) != null) skin.shoes = cosmetics.get(SkinGenerator.KEY_SHOES);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_OVERPANTS) && cosmetics.get(SkinGenerator.KEY_OVERPANTS) != null) skin.overpants = cosmetics.get(SkinGenerator.KEY_OVERPANTS);
+                                
+                                if (cosmetics.containsKey(SkinGenerator.KEY_CAPE) && cosmetics.get(SkinGenerator.KEY_CAPE) != null) skin.cape = cosmetics.get(SkinGenerator.KEY_CAPE);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_HEAD_ACCESSORY) && cosmetics.get(SkinGenerator.KEY_HEAD_ACCESSORY) != null) skin.headAccessory = cosmetics.get(SkinGenerator.KEY_HEAD_ACCESSORY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_FACE_ACCESSORY) && cosmetics.get(SkinGenerator.KEY_FACE_ACCESSORY) != null) skin.faceAccessory = cosmetics.get(SkinGenerator.KEY_FACE_ACCESSORY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_EAR_ACCESSORY) && cosmetics.get(SkinGenerator.KEY_EAR_ACCESSORY) != null) skin.earAccessory = cosmetics.get(SkinGenerator.KEY_EAR_ACCESSORY);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_FACIAL_HAIR) && cosmetics.get(SkinGenerator.KEY_FACIAL_HAIR) != null) skin.facialHair = cosmetics.get(SkinGenerator.KEY_FACIAL_HAIR);
+                                if (cosmetics.containsKey(SkinGenerator.KEY_GLOVES) && cosmetics.get(SkinGenerator.KEY_GLOVES) != null) skin.gloves = cosmetics.get(SkinGenerator.KEY_GLOVES);
+
+                                store.addComponent(entityRef, PlayerSkinComponent.getComponentType(), new PlayerSkinComponent(skin));
+                                LOGGER.atFine().log("Applied cosmetics to citizen %s", citizen.getName());
+                            }
+                        } catch (Exception e) {
+                            LOGGER.atWarning().log("Failed to apply cosmetics to citizen %s: %s", citizen.getName(), e.getMessage());
+                        }
+                    }
+
+                    // Register the entity reference with ColonyService for later lookup and cleanup
+                    colonyService.registerCitizenEntity(citizen.getCitizenId(), entityRef, world);
 
                     LOGGER.atInfo().log("Spawned citizen '%s' as %s at (%.0f, %.0f, %.0f)",
                             citizen.getName(), npcSkin,
@@ -165,9 +253,7 @@ public class CitizenCommand extends CommandBase {
         return false;
     }
 
-    // =====================
-    // Subcommand: add
-    // =====================
+    // Subcommands (Add, List, Spawn, Remove, Job) follow - unchanged structure
     private static class AddSubCommand extends CommandBase {
         private final ColonyService colonyService;
         private final RequiredArg<String> colonyIdArg;
@@ -189,9 +275,7 @@ public class CitizenCommand extends CommandBase {
             String requestedSkin = ctx.get(skinArg);
 
             ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
-            if (colony == null) {
-                return;
-            }
+            if (colony == null) return;
 
             UUID colonyId = colony.getColonyId();
 
@@ -214,23 +298,18 @@ public class CitizenCommand extends CommandBase {
                 return;
             }
 
-            // Resolve skin: use specified skin or random from faction
             String npcSkin;
             if (requestedSkin != null && !requestedSkin.isEmpty()) {
-                // Try to find matching skin in faction
                 String foundSkin = colony.getFaction().findSkin(requestedSkin);
                 if (foundSkin != null) {
                     npcSkin = foundSkin;
                 } else {
                     ctx.sendMessage(Message.raw("Skin '" + requestedSkin + "' not found in " + colony.getFaction().getDisplayName() + " faction."));
-                    ctx.sendMessage(Message.raw("Available skins: " + String.join(", ", colony.getFaction().getNpcSkins())));
                     return;
                 }
             } else {
                 npcSkin = colony.getFaction().getRandomSkin();
-                if (npcSkin == null) {
-                    npcSkin = "Kweebec_Razorleaf"; // Fallback
-                }
+                if (npcSkin == null) npcSkin = "Kweebec_Razorleaf";
             }
 
             final String finalNpcSkin = npcSkin;
@@ -244,7 +323,6 @@ public class CitizenCommand extends CommandBase {
                         return;
                     }
 
-                    // Get player position
                     double x = 0, y = 64, z = 0;
                     TransformComponent transform = store.getComponent(playerRef, TransformComponent.getComponentType());
                     if (transform != null && transform.getPosition() != null) {
@@ -256,15 +334,12 @@ public class CitizenCommand extends CommandBase {
                     CitizenData citizen = colonyService.addCitizen(colonyId, citizenName, x, y, z, finalNpcSkin, false);
 
                     if (citizen != null) {
-                        boolean spawned = spawnCitizenNPC(store, colonyId, citizen, finalNpcSkin);
-
+                        boolean spawned = spawnCitizenNPC(store, world, colonyService, colonyId, citizen, finalNpcSkin);
                         if (spawned) {
                             ctx.sendMessage(Message.raw("Spawned citizen '" + citizenName + "' (" + finalNpcSkin + ") in " + colony.getName() + "!"));
                         } else {
                             ctx.sendMessage(Message.raw("Added citizen '" + citizenName + "' but NPC spawn failed."));
                         }
-                        ctx.sendMessage(Message.raw("Colony population: " + colony.getPopulation()));
-                        ctx.sendMessage(Message.raw("Location: " + (int) x + ", " + (int) y + ", " + (int) z));
                     } else {
                         ctx.sendMessage(Message.raw("Failed to add citizen."));
                     }
@@ -276,9 +351,6 @@ public class CitizenCommand extends CommandBase {
         }
     }
 
-    // =====================
-    // Subcommand: list
-    // =====================
     private static class ListSubCommand extends CommandBase {
         private final ColonyService colonyService;
         private final RequiredArg<String> colonyIdArg;
@@ -292,11 +364,8 @@ public class CitizenCommand extends CommandBase {
         @Override
         protected void executeSync(@Nonnull CommandContext ctx) {
             String colonyIdentifier = ctx.get(colonyIdArg);
-
             ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
-            if (colony == null) {
-                return;
-            }
+            if (colony == null) return;
 
             if (colony.getPopulation() == 0) {
                 ctx.sendMessage(Message.raw("Colony '" + colony.getName() + "' has no citizens yet."));
@@ -313,9 +382,6 @@ public class CitizenCommand extends CommandBase {
         }
     }
 
-    // =====================
-    // Subcommand: spawn
-    // =====================
     private static class SpawnSubCommand extends CommandBase {
         private final ColonyService colonyService;
         private final RequiredArg<String> colonyIdArg;
@@ -337,15 +403,11 @@ public class CitizenCommand extends CommandBase {
             String requestedSkin = ctx.get(skinArg);
 
             ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
-            if (colony == null) {
-                return;
-            }
+            if (colony == null) return;
 
             UUID colonyId = colony.getColonyId();
             CitizenData citizen = resolveCitizenWithFeedback(colonyService, ctx, colony, citizenIdentifier);
-            if (citizen == null) {
-                return;
-            }
+            if (citizen == null) return;
 
             if (!ctx.isPlayer()) {
                 ctx.sendMessage(Message.raw("This command must be run by a player."));
@@ -360,24 +422,19 @@ public class CitizenCommand extends CommandBase {
 
             World world = player.getWorld();
             Ref<EntityStore> playerRef = player.getReference();
-
             if (playerRef == null) {
                 ctx.sendMessage(Message.raw("Could not get player reference."));
                 return;
             }
 
-            // Resolve skin: use specified skin, or fall back to citizen's stored skin
             String npcSkin;
             if (requestedSkin != null && !requestedSkin.isEmpty()) {
-                // Try to find matching skin in faction
                 String foundSkin = colony.getFaction().findSkin(requestedSkin);
                 if (foundSkin != null) {
                     npcSkin = foundSkin;
-                    // Update the citizen's stored skin
                     citizen.setNpcSkin(foundSkin);
                 } else {
                     ctx.sendMessage(Message.raw("Skin '" + requestedSkin + "' not found in " + colony.getFaction().getDisplayName() + " faction."));
-                    ctx.sendMessage(Message.raw("Available skins: " + String.join(", ", colony.getFaction().getNpcSkins())));
                     return;
                 }
             } else {
@@ -386,7 +443,6 @@ public class CitizenCommand extends CommandBase {
 
             final String finalNpcSkin = npcSkin;
 
-            // All store operations must run on the world thread
             world.execute(() -> {
                 try {
                     Store<EntityStore> store = playerRef.getStore();
@@ -395,7 +451,6 @@ public class CitizenCommand extends CommandBase {
                         return;
                     }
 
-                    // Get player position for spawning
                     double x = citizen.getLastX();
                     double y = citizen.getLastY();
                     double z = citizen.getLastZ();
@@ -409,11 +464,10 @@ public class CitizenCommand extends CommandBase {
 
                     citizen.updateLastPosition(x, y, z);
 
-                    boolean spawned = spawnCitizenNPC(store, colonyId, citizen, finalNpcSkin);
+                    boolean spawned = spawnCitizenNPC(store, world, colonyService, colonyId, citizen, finalNpcSkin);
 
                     if (spawned) {
-                        ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' (" + finalNpcSkin + ") at " +
-                                (int) x + ", " + (int) y + ", " + (int) z));
+                        ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' (" + finalNpcSkin + ") at " + (int) x + ", " + (int) y + ", " + (int) z));
                     } else {
                         ctx.sendMessage(Message.raw("Failed to spawn citizen '" + citizen.getName() + "'."));
                     }
@@ -425,9 +479,6 @@ public class CitizenCommand extends CommandBase {
         }
     }
 
-    // =====================
-    // Subcommand: remove
-    // =====================
     private static class RemoveSubCommand extends CommandBase {
         private final ColonyService colonyService;
         private final RequiredArg<String> colonyIdArg;
@@ -446,24 +497,128 @@ public class CitizenCommand extends CommandBase {
             String citizenIdentifier = ctx.get(citizenIdArg);
 
             ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
-            if (colony == null) {
-                return;
-            }
+            if (colony == null) return;
 
             CitizenData citizen = resolveCitizenWithFeedback(colonyService, ctx, colony, citizenIdentifier);
-            if (citizen == null) {
-                return;
-            }
+            if (citizen == null) return;
 
-            CitizenData removed = colonyService.removeCitizen(colony.getColonyId(), citizen.getCitizenId());
+            CitizenData removed = colonyService.removeCitizenWithEntity(colony.getColonyId(), citizen.getCitizenId());
 
             if (removed != null) {
                 ctx.sendMessage(Message.raw("Removed citizen '" + removed.getName() + "' from " + colony.getName() + "."));
                 ctx.sendMessage(Message.raw("Colony population: " + colony.getPopulation()));
-                ctx.sendMessage(Message.raw("Note: Spawned NPC entity remains in world until chunk unloads."));
+
+                // Process pending entity removals immediately
+                colonyService.processPendingEntityRemovals();
+                ctx.sendMessage(Message.raw("NPC entity despawned."));
             } else {
                 ctx.sendMessage(Message.raw("Citizen not found in colony."));
             }
+        }
+    }
+
+    private static class JobSubCommand extends CommandBase {
+        private final ColonyService colonyService;
+        private final RequiredArg<String> colonyIdArg;
+        private final RequiredArg<String> citizenIdArg;
+        private final RequiredArg<String> jobTypeArg;
+
+        public JobSubCommand(ColonyService colonyService) {
+            super("job", "Assign a job to a citizen");
+            this.colonyService = colonyService;
+            this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
+            this.citizenIdArg = withRequiredArg("citizen", "Citizen name or UUID", ArgTypes.STRING);
+            this.jobTypeArg = withRequiredArg("job", "Job type", ArgTypes.STRING);
+        }
+
+        @Override
+        protected void executeSync(@Nonnull CommandContext ctx) {
+            String colonyIdentifier = ctx.get(colonyIdArg);
+            String citizenIdentifier = ctx.get(citizenIdArg);
+            String jobTypeStr = ctx.get(jobTypeArg);
+
+            ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
+            if (colony == null) return;
+
+            CitizenData citizen = resolveCitizenWithFeedback(colonyService, ctx, colony, citizenIdentifier);
+            if (citizen == null) return;
+
+            JobType jobType;
+            try {
+                jobType = JobType.valueOf(jobTypeStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                ctx.sendMessage(Message.raw("Unknown job type: " + jobTypeStr));
+                ctx.sendMessage(Message.raw("Available jobs: " + String.join(", ",
+                        java.util.Arrays.stream(JobType.values())
+                                .map(j -> j.name().toLowerCase())
+                                .toArray(String[]::new))));
+                return;
+            }
+
+            if (!ctx.isPlayer()) {
+                ctx.sendMessage(Message.raw("This command must be run by a player."));
+                return;
+            }
+
+            Player player = ctx.senderAs(Player.class);
+            if (player == null || player.getWorld() == null) return;
+
+            World world = player.getWorld();
+            UUID colonyId = colony.getColonyId();
+            UUID citizenId = citizen.getCitizenId();
+
+            world.execute(() -> {
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                boolean found = findAndUpdateCitizenJob(store, colonyId, citizenId, jobType);
+                if (found) {
+                    ctx.sendMessage(Message.raw("Assigned " + citizen.getName() + " as " + jobType.getDisplayName() + "."));
+                } else {
+                    ctx.sendMessage(Message.raw("Citizen entity not found in world. Spawn the citizen first."));
+                }
+            });
+        }
+
+        /**
+         * Finds the citizen entity and updates their job component.
+         * Must be called on the world thread.
+         */
+        private boolean findAndUpdateCitizenJob(Store<EntityStore> store, UUID colonyId, UUID citizenId, JobType jobType) {
+            if (CitizenComponent.getComponentType() == null || JobComponent.getComponentType() == null) return false;
+
+            Ref<EntityStore> entityRef = colonyService.getCitizenEntity(citizenId);
+            if (entityRef == null) return false;
+
+            CitizenComponent citizenComp = store.getComponent(entityRef, CitizenComponent.getComponentType());
+            if (citizenComp == null) {
+                colonyService.unregisterCitizenEntity(citizenId);
+                return false;
+            }
+
+            JobComponent existingJob = store.getComponent(entityRef, JobComponent.getComponentType());
+            JobComponent newJob;
+
+            if (existingJob != null) {
+                newJob = new JobComponent(
+                        jobType,
+                        existingJob.getCurrentState(),
+                        existingJob.getAssignedTaskId(),
+                        existingJob.getExperiencePoints()
+                );
+            } else {
+                newJob = new JobComponent(jobType, "IDLE", null, 0);
+            }
+
+            store.addComponent(entityRef, JobComponent.getComponentType(), newJob);
+
+            if (jobType == JobType.COURIER && IdleTag.getComponentType() != null) {
+                IdleTag idleTag = store.getComponent(entityRef, IdleTag.getComponentType());
+                if (idleTag == null) {
+                    store.addComponent(entityRef, IdleTag.getComponentType(), new IdleTag());
+                }
+            }
+
+            LOGGER.atInfo().log("Assigned job %s to citizen %s", jobType.name(), citizenId.toString().substring(0, 8));
+            return true;
         }
     }
 }
