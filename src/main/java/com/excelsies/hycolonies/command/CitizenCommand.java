@@ -68,11 +68,11 @@ public class CitizenCommand extends CommandBase {
         ctx.sendMessage(Message.raw("Usage:"));
         ctx.sendMessage(Message.raw("  /citizen add [colony] [name] [skin] - Add and spawn a citizen"));
         ctx.sendMessage(Message.raw("  /citizen list [colony] - List citizens"));
-        ctx.sendMessage(Message.raw("  /citizen spawn [colony] [citizen] [skin] - Spawn existing citizen"));
+        ctx.sendMessage(Message.raw("  /citizen spawn [colony] [citizen] [skin] [job] - Spawn existing citizen"));
         ctx.sendMessage(Message.raw("  /citizen remove [colony] [citizen] - Remove a citizen"));
         ctx.sendMessage(Message.raw("  /citizen job [colony] [citizen] [job] - Assign a job to a citizen"));
         ctx.sendMessage(Message.raw("Note: Colony and citizen can be specified by name or UUID."));
-        ctx.sendMessage(Message.raw("      Skin is optional; uses random faction skin if not specified."));
+        ctx.sendMessage(Message.raw("      Skin and job are optional."));
         ctx.sendMessage(Message.raw("      Jobs: " + String.join(", ",
                 java.util.Arrays.stream(JobType.values())
                         .map(j -> j.name().toLowerCase())
@@ -387,6 +387,7 @@ public class CitizenCommand extends CommandBase {
         private final RequiredArg<String> colonyIdArg;
         private final RequiredArg<String> citizenIdArg;
         private final OptionalArg<String> skinArg;
+        private final OptionalArg<String> jobArg;
 
         public SpawnSubCommand(ColonyService colonyService) {
             super("spawn", "Spawn an existing citizen as an NPC entity");
@@ -394,6 +395,7 @@ public class CitizenCommand extends CommandBase {
             this.colonyIdArg = withRequiredArg("colony", "Colony name or UUID", ArgTypes.STRING);
             this.citizenIdArg = withRequiredArg("citizen", "Citizen name or UUID", ArgTypes.STRING);
             this.skinArg = withOptionalArg("skin", "Override skin variant (optional)", ArgTypes.STRING);
+            this.jobArg = withOptionalArg("job", "Assign job on spawn (optional)", ArgTypes.STRING);
         }
 
         @Override
@@ -401,6 +403,7 @@ public class CitizenCommand extends CommandBase {
             String colonyIdentifier = ctx.get(colonyIdArg);
             String citizenIdentifier = ctx.get(citizenIdArg);
             String requestedSkin = ctx.get(skinArg);
+            String requestedJob = ctx.get(jobArg);
 
             ColonyData colony = resolveColonyWithFeedback(colonyService, ctx, colonyIdentifier);
             if (colony == null) return;
@@ -408,6 +411,21 @@ public class CitizenCommand extends CommandBase {
             UUID colonyId = colony.getColonyId();
             CitizenData citizen = resolveCitizenWithFeedback(colonyService, ctx, colony, citizenIdentifier);
             if (citizen == null) return;
+
+            // Parse job type if provided
+            JobType jobType = null;
+            if (requestedJob != null && !requestedJob.isEmpty()) {
+                try {
+                    jobType = JobType.valueOf(requestedJob.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    ctx.sendMessage(Message.raw("Unknown job type: " + requestedJob));
+                    ctx.sendMessage(Message.raw("Available jobs: " + String.join(", ",
+                            java.util.Arrays.stream(JobType.values())
+                                    .map(j -> j.name().toLowerCase())
+                                    .toArray(String[]::new))));
+                    return;
+                }
+            }
 
             if (!ctx.isPlayer()) {
                 ctx.sendMessage(Message.raw("This command must be run by a player."));
@@ -442,6 +460,7 @@ public class CitizenCommand extends CommandBase {
             }
 
             final String finalNpcSkin = npcSkin;
+            final JobType finalJobType = jobType;
 
             world.execute(() -> {
                 try {
@@ -467,7 +486,30 @@ public class CitizenCommand extends CommandBase {
                     boolean spawned = spawnCitizenNPC(store, world, colonyService, colonyId, citizen, finalNpcSkin);
 
                     if (spawned) {
-                        ctx.sendMessage(Message.raw("Spawned citizen '" + citizen.getName() + "' (" + finalNpcSkin + ") at " + (int) x + ", " + (int) y + ", " + (int) z));
+                        StringBuilder message = new StringBuilder();
+                        message.append("Spawned citizen '").append(citizen.getName())
+                               .append("' (").append(finalNpcSkin).append(") at ")
+                               .append((int) x).append(", ").append((int) y).append(", ").append((int) z);
+
+                        // Apply job if requested
+                        if (finalJobType != null) {
+                            Ref<EntityStore> entityRef = colonyService.getCitizenEntity(citizen.getCitizenId());
+                            if (entityRef != null && JobComponent.getComponentType() != null) {
+                                JobComponent jobComponent = new JobComponent(finalJobType, "IDLE", null, 0);
+                                store.addComponent(entityRef, JobComponent.getComponentType(), jobComponent);
+
+                                // Add IdleTag for employed citizens
+                                if (finalJobType != JobType.UNEMPLOYED && IdleTag.getComponentType() != null) {
+                                    store.addComponent(entityRef, IdleTag.getComponentType(), new IdleTag());
+                                }
+
+                                message.append(" as ").append(finalJobType.getDisplayName());
+                                LOGGER.atInfo().log("Assigned job %s to citizen %s on spawn",
+                                        finalJobType.name(), citizen.getCitizenId().toString().substring(0, 8));
+                            }
+                        }
+
+                        ctx.sendMessage(Message.raw(message.toString()));
                     } else {
                         ctx.sendMessage(Message.raw("Failed to spawn citizen '" + citizen.getName() + "'."));
                     }
@@ -610,10 +652,17 @@ public class CitizenCommand extends CommandBase {
 
             store.addComponent(entityRef, JobComponent.getComponentType(), newJob);
 
-            if (jobType == JobType.COURIER && IdleTag.getComponentType() != null) {
+            // Add IdleTag for all job types (except UNEMPLOYED) to mark them as available for tasks
+            if (jobType != JobType.UNEMPLOYED && IdleTag.getComponentType() != null) {
                 IdleTag idleTag = store.getComponent(entityRef, IdleTag.getComponentType());
                 if (idleTag == null) {
                     store.addComponent(entityRef, IdleTag.getComponentType(), new IdleTag());
+                }
+            } else if (jobType == JobType.UNEMPLOYED && IdleTag.getComponentType() != null) {
+                // Remove IdleTag if setting to UNEMPLOYED
+                IdleTag idleTag = store.getComponent(entityRef, IdleTag.getComponentType());
+                if (idleTag != null) {
+                    store.removeComponent(entityRef, IdleTag.getComponentType());
                 }
             }
 
